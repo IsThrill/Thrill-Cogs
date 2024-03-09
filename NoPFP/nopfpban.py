@@ -24,7 +24,7 @@ class NoPfpBan(commands.Cog):
         autoban_reason = await self.config.guild(member.guild).autoban_reason()
         if autoban_enabled and not member.avatar:
             try:
-                await member.ban(reason=autoban_reason)
+                await member.kick(reason=autoban_reason)
             except discord.Forbidden:
                 log.info("NoPfpBan cog does not have permissions to ban in guild {member.guild.id}")
 
