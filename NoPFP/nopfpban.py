@@ -10,7 +10,7 @@ class NoPfpBan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=2706371337)
-        default_guild_settings = {"autoban_enabled": False, "autoban_reason": "Automated ban: No profile picture", "ban_mode": True}
+        default_guild_settings = {"autoban_enabled": False, "autoban_reason": "Automated ban: No profile picture"}
         self.config.register_guild(**default_guild_settings)
 
     async def red_delete_data_for_user(self, **kwargs):
@@ -21,24 +21,25 @@ class NoPfpBan(commands.Cog):
     async def on_member_join(self, member):
         autoban_enabled = await self.config.guild(member.guild).autoban_enabled()
         autoban_reason = await self.config.guild(member.guild).autoban_reason()
-        ban_mode = await self.config.guild(member.guild).ban_mode()
-        
         if autoban_enabled and not member.avatar:
             try:
-                if ban_mode:
-                    await member.send(f"You have been automatically banned from {member.guild.name} due to not having a profile picture.\nReason: {autoban_reason}")
-                    await member.ban(reason=autoban_reason)
-                else:
-                    await member.send(f"You have been automatically kicked from {member.guild.name} due to not having a profile picture.\nReason: {autoban_reason}")
-                    await member.kick(reason=autoban_reason)
+                await member.send(f"You have been automatically banned from {member.guild.name} due to: {autoban_reason}")
+                await member.ban(reason=autoban_reason)
             except discord.Forbidden:
-                log.info(f"NoPfpBan cog does not have permissions to {'ban' if ban_mode else 'kick'} in guild {member.guild.id}")
-                fail_channel_id = await self.config.guild(member.guild).fail_channel()
-                fail_channel = self.bot.get_channel(fail_channel_id)
-                if fail_channel:
-                    await fail_channel.send(f"Failed to DM and {'ban' if ban_mode else 'kick'} user {member.name} ({member.id}) due to missing permissions.")
-                else:
-                    log.warning(f"Fail channel not configured for guild {member.guild.id}")
+                log.info(f"NoPfpBan cog does not have permissions to ban in guild {member.guild.id}")
+                await self.kick_user(member, autoban_reason)
+
+    async def kick_user(self, member, reason):
+        try:
+            await member.kick(reason=reason)
+        except discord.Forbidden:
+            log.info(f"NoPfpBan cog does not have permissions to kick in guild {member.guild.id}")
+            fail_channel_id = await self.config.guild(member.guild).fail_channel()
+            fail_channel = self.bot.get_channel(fail_channel_id)
+            if fail_channel:
+                await fail_channel.send(f"Failed to kick user {member.name} ({member.id}) due to missing permissions.")
+            else:
+                log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
     @commands.group()
     async def autoban(self, ctx):
@@ -60,7 +61,7 @@ class NoPfpBan(commands.Cog):
     @autoban.command()
     async def reason(self, ctx, *, reason: str):
         """
-        Set the automatic ban/kick reason, for this guild.
+        Set the automatic ban reason, for this guild.
         It will show in the audit log as the reason for removing the user.
         """
         await self.config.guild(ctx.guild).autoban_reason.set(reason)
@@ -70,8 +71,7 @@ class NoPfpBan(commands.Cog):
     async def status(self, ctx):
         """Check the status of autoban."""
         autoban_enabled = await self.config.guild(ctx.guild).autoban_enabled()
-        ban_mode = await self.config.guild(ctx.guild).ban_mode()
-        await ctx.send(f"Autoban is {'enabled' if autoban_enabled else 'disabled'} in this guild. Current mode: {'Ban' if ban_mode else 'Kick'}")
+        await ctx.send(f"Autoban is {'enabled' if autoban_enabled else 'disabled'} in this guild.")
 
     @autoban.command()
     @commands.has_permissions(administrator=True)
@@ -85,11 +85,13 @@ class NoPfpBan(commands.Cog):
 
     @autoban.command()
     @commands.has_permissions(administrator=True)
-    async def togglebanmode(self, ctx):
+    async def toggleaction(self, ctx):
         """
-        Toggle between banning and kicking users without profile pictures.
+        Toggle between kicking and banning users.
         """
-        current_mode = await self.config.guild(ctx.guild).ban_mode()
-        new_mode = not current_mode
-        await self.config.guild(ctx.guild).ban_mode.set(new_mode)
-        await ctx.send(f"Autoban mode toggled. Users will now {'be banned' if new_mode else 'be kicked'} if they don't have a profile picture.")
+        current_action = await self.config.guild(ctx.guild).autoban_action()
+        new_action = "ban" if current_action == "kick" else "kick"
+        await self.config.guild(ctx.guild).autoban_action.set(new_action)
+        await ctx.send(f"Autoban action set to: {new_action}")
+
+
