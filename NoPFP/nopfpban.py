@@ -46,7 +46,7 @@ class NoPfpBan(commands.Cog):
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
-            await fail_channel.send(f"Failed to DM and kick user {member.name} ({member.id}) due to missing permissions.")
+            await fail_channel.send(f"Failed to DM the user {member.name} ({member.id}) due to there privacy settings.")
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
