@@ -35,18 +35,37 @@ class NoPfpBan(commands.Cog):
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
-                    await member.kick(reason=autoban_reason)
+                    await self.kick_user(member, autoban_reason)
             except discord.Forbidden:
                 await self.kick_user(member, autoban_reason)
                 await self.send_fail_message(member)
 
     async def kick_user(self, member, reason):
         try:
-            await asyncio.sleep(3)  # Wait for 3 seconds before kicking the user
             await member.kick(reason=reason)
         except discord.Forbidden:
             await self.send_fail_message(member)
-    
+        else:
+            await self.send_kick_message(member)
+
+    async def send_kick_message(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                embed = discord.Embed(
+                    title="No PFP > User Kicked!",
+                    description=f"**{member.name}** ({member.id}) was kicked due to No Profile Picture.",
+                    color=discord.Color.orange()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    embed.set_thumbnail(url=member.default_avatar.url)
+                await fail_channel.send(embed=embed)
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
+
     async def send_fail_message(self, member):
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
@@ -60,14 +79,12 @@ class NoPfpBan(commands.Cog):
                 if member.avatar:
                     embed.set_thumbnail(url=member.avatar.url)
                 else:
-                    # If the member doesn't have an avatar, use the default Discord avatar URL
                     embed.set_thumbnail(url=member.default_avatar.url)
                 await fail_channel.send(embed=embed)
             except discord.Forbidden:
-                log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
+                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to their privacy settings.")
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
-            log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
 
 
     @commands.group()
