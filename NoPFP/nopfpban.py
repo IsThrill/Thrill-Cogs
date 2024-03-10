@@ -46,12 +46,15 @@ class NoPfpBan(commands.Cog):
         if fail_channel:
             try:
                 embed = discord.Embed(
-                    title="Failed to Send Message",
-                    description=f"Failed to send a message to {member.name} due to their privacy settings.",
+                    title="No PFP > User Removed!",
+                    description=f"Failed to send a message to **{member.name}** ({member.id}) due to their privacy settings.",
                     color=discord.Color.red()
                 )
                 if member.avatar:
                     embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    # If the member doesn't have an avatar, use the default Discord avatar URL
+                    embed.set_thumbnail(url=member.default_avatar_url)
                 await fail_channel.send(embed=embed)
             except discord.Forbidden:
                 log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
@@ -121,6 +124,6 @@ class NoPfpBan(commands.Cog):
         Toggle between kicking and banning users.
         """
         current_action = await self.config.guild(ctx.guild).autoban_action()
-        new_action = "kick" if current_action == "ban" else "ban" if current_action == "kick" else "ban"
+        new_action = "ban" if current_action == "kick" else "kick"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
