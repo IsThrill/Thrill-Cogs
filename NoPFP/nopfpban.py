@@ -47,17 +47,17 @@ class NoPfpBan(commands.Cog):
             await self.send_fail_message(member)
 
     async def send_fail_message(self, member):
-    await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
-    fail_channel_id = await self.config.guild(member.guild).fail_channel()
-    fail_channel = self.bot.get_channel(fail_channel_id)
-    if fail_channel:
-        try:
-            await fail_channel.send(f"Failed to send a message to {member.name} due to their privacy settings.")
-        except discord.Forbidden:
-            log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
-    else:
-        log.warning(f"Fail channel not configured for guild {member.guild.id}")
-        log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
+        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                await fail_channel.send(f"Failed to send a message to {member.name} due to their privacy settings.")
+            except discord.Forbidden:
+                log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
+            log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
 
     @commands.group()
     @commands.has_permissions(administrator=True)
