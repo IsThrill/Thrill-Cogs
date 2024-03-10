@@ -15,6 +15,7 @@ class NoPfpBan(commands.Cog):
             "autoban_enabled": False,
             "autoban_reason": "Automated ban: No profile picture",
             "autoban_action": "ban",
+            "fail_channel": None
         }
         self.config.register_guild(**default_guild_settings)
 
@@ -57,8 +58,6 @@ class NoPfpBan(commands.Cog):
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
             log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
-
-
 
     async def kick_user(self, member, reason):
         try:
@@ -122,6 +121,6 @@ class NoPfpBan(commands.Cog):
         Toggle between kicking and banning users.
         """
         current_action = await self.config.guild(ctx.guild).autoban_action()
-        new_action = "kick" if current_action == "ban" else "ban"
+        new_action = "kick" if current_action == "ban" else "ban" if current_action == "kick" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
