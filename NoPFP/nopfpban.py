@@ -46,20 +46,15 @@ class NoPfpBan(commands.Cog):
         except discord.Forbidden:
             log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
             await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
-            await self.send_fail_embed(member)
+            await self.send_fail_message(member)
 
-    async def send_fail_embed(self, member):
-        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail embed
+    async def send_fail_message(self, member):
+        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
-            embed = discord.Embed(
-                title=f"Failed to DM {member.name}",
-                description="Failed to DM the user due to their privacy settings.",
-                color=0xfc0303,
-            )
-            embed.set_thumbnail(url=member.avatar_url)
-            await fail_channel.send(embed=embed)
+            message = f"Failed to DM {member.name} due to their privacy settings."
+            await fail_channel.send(message)
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
             log.info(f"Failed to DM {member.name} due to their privacy settings.")
