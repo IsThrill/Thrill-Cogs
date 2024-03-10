@@ -40,6 +40,13 @@ class NoPfpBan(commands.Cog):
                 await self.kick_user(member, autoban_reason)
                 await self.send_fail_message(member)
 
+    async def kick_user(self, member, reason):
+        try:
+            await asyncio.sleep(3)  # Wait for 3 seconds before kicking the user
+            await member.kick(reason=reason)
+        except discord.Forbidden:
+            await self.send_fail_message(member)
+    
     async def send_fail_message(self, member):
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
@@ -62,14 +69,6 @@ class NoPfpBan(commands.Cog):
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
             log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
 
-
-    async def kick_user(self, member, reason):
-        try:
-            await asyncio.sleep(3)  # Wait for 3 seconds before kicking the user
-            await member.kick(reason=reason)
-        except discord.Forbidden:
-            log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
-            await self.send_fail_message(member)
 
     @commands.group()
     @commands.has_permissions(administrator=True)
