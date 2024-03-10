@@ -10,7 +10,11 @@ class NoPfpBan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=2706371337)
-        default_guild_settings = {"autoban_enabled": False, "autoban_reason": "Automated ban: No profile picture", "autoban_action": "ban"}
+        default_guild_settings = {
+            "autoban_enabled": False,
+            "autoban_reason": "Automated ban: No profile picture",
+            "autoban_action": "ban",
+        }
         self.config.register_guild(**default_guild_settings)
 
     async def red_delete_data_for_user(self, **kwargs):
@@ -24,7 +28,9 @@ class NoPfpBan(commands.Cog):
         autoban_action = await self.config.guild(member.guild).autoban_action()
         if autoban_enabled and not member.avatar:
             try:
-                await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
+                await member.send(
+                    f"You have been automatically removed from {member.guild.name} due to {autoban_reason}"
+                )
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
@@ -38,19 +44,21 @@ class NoPfpBan(commands.Cog):
             await member.kick(reason=reason)
         except discord.Forbidden:
             log.info(f"NoPfpBan cog does not have permissions to kick in guild {member.guild.id}")
-            fail_channel_id = await self.config.guild(member.guild).fail_channel()
-            fail_channel = self.bot.get_channel(fail_channel_id)
-            if fail_channel:
-                embed = discord.Embed(
-                    title=f"Failed to DM {member.name}",
-                    description="Failed to DM the user due to their privacy settings.",
-                    color=0xfc0303
-                )
-                embed.set_thumbnail(url=member.avatar_url)
-                await fail_channel.send(embed=embed)
-            else:
-                log.warning(f"Fail channel not configured for guild {member.guild.id}")
-            return
+            await self.send_fail_embed(member)
+
+    async def send_fail_embed(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            embed = discord.Embed(
+                title=f"Failed to DM {member.name}",
+                description="Failed to DM the user due to their privacy settings.",
+                color=0xfc0303,
+            )
+            embed.set_thumbnail(url=member.avatar_url)
+            await fail_channel.send(embed=embed)
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
     @commands.group()
     async def autoban(self, ctx):
@@ -104,4 +112,3 @@ class NoPfpBan(commands.Cog):
         new_action = "kick" if current_action == "ban" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
-
