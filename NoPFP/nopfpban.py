@@ -103,4 +103,16 @@ class NoPfpBan(commands.Cog):
         Set the channel to log failed DMs for autoban.
         Example: [p]autoban setfailchannel #logs
         """
-        await self.config.g
+        await self.config.guild(ctx.guild).fail_channel.set(channel.id)
+        await ctx.send(f"Fail channel set to: {channel.mention}")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def toggleaction(self, ctx):
+        """
+        Toggle between kicking and banning users.
+        """
+        current_action = await self.config.guild(ctx.guild).autoban_action()
+        new_action = "kick" if current_action == "ban" else "ban"
+        await self.config.guild(ctx.guild).autoban_action.set(new_action)
+        await ctx.send(f"Autoban action set to: {new_action}")
