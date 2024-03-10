@@ -29,9 +29,7 @@ class NoPfpBan(commands.Cog):
         autoban_action = await self.config.guild(member.guild).autoban_action()
         if autoban_enabled and not member.avatar:
             try:
-                await member.send(
-                    f"You have been automatically removed from {member.guild.name} due to {autoban_reason}"
-                )
+                await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
@@ -39,7 +37,7 @@ class NoPfpBan(commands.Cog):
             except discord.Forbidden:
                 log.info(f"User, {member.guild.id} has been banned for Invalid PFP")
                 await self.kick_user(member, autoban_reason)
-
+                
     async def kick_user(self, member, reason):
         try:
             await member.kick(reason=reason)
@@ -49,15 +47,17 @@ class NoPfpBan(commands.Cog):
             await self.send_fail_message(member)
 
     async def send_fail_message(self, member):
-        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
-        fail_channel_id = await self.config.guild(member.guild).fail_channel()
-        fail_channel = self.bot.get_channel(fail_channel_id)
-        if fail_channel:
-            message = f"Failed to DM {member.name} due to their privacy settings."
-            await fail_channel.send(message)
-        else:
-            log.warning(f"Fail channel not configured for guild {member.guild.id}")
-            log.info(f"Failed to DM {member.name} due to their privacy settings.")
+    await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
+    fail_channel_id = await self.config.guild(member.guild).fail_channel()
+    fail_channel = self.bot.get_channel(fail_channel_id)
+    if fail_channel:
+        try:
+            await fail_channel.send(f"Failed to send a message to {member.name} due to their privacy settings.")
+        except discord.Forbidden:
+            log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
+    else:
+        log.warning(f"Fail channel not configured for guild {member.guild.id}")
+        log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
 
     @commands.group()
     @commands.has_permissions(administrator=True)
