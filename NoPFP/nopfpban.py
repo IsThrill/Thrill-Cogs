@@ -28,6 +28,7 @@ class NoPfpBan(commands.Cog):
         autoban_enabled = await self.config.guild(member.guild).autoban_enabled()
         autoban_reason = await self.config.guild(member.guild).autoban_reason()
         autoban_action = await self.config.guild(member.guild).autoban_action()
+    
         if autoban_enabled and not member.avatar:
             try:
                 await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
@@ -37,8 +38,15 @@ class NoPfpBan(commands.Cog):
                 elif autoban_action == "kick":
                     await member.kick(reason=autoban_reason)
             except discord.Forbidden:
-                await self.kick_user(member, autoban_reason)
-                await self.send_fail_message(member)
+                # The bot can't send a DM to the user, handle this case
+                await self.handle_dm_forbidden(member)
+                # Additionally, log this case for further investigation
+                log.warning(f"Failed to send DM to {member.name} ({member.id})")
+    
+    async def handle_dm_forbidden(self, member):
+
+        pass
+
 
     async def kick_user(self, member, reason):
         try:
