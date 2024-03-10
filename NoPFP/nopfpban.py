@@ -30,6 +30,7 @@ class NoPfpBan(commands.Cog):
         if autoban_enabled and not member.avatar:
             try:
                 await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
+                await asyncio.sleep(7)  # Wait for 7 seconds before taking action
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
@@ -37,9 +38,10 @@ class NoPfpBan(commands.Cog):
             except discord.Forbidden:
                 log.info(f"User, {member.guild.id} has been banned for Invalid PFP")
                 await self.kick_user(member, autoban_reason)
-                
+
     async def kick_user(self, member, reason):
         try:
+            await asyncio.sleep(7)  # Wait for 7 seconds before kicking the user
             await member.kick(reason=reason)
         except discord.Forbidden:
             log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
