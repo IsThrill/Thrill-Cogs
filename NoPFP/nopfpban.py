@@ -41,18 +41,16 @@ class NoPfpBan(commands.Cog):
             fail_channel_id = await self.config.guild(member.guild).fail_channel()
             fail_channel = self.bot.get_channel(fail_channel_id)
             if fail_channel:
-                await fail_channel.send(f"Failed to kick user {member.name} ({member.id}) due to missing permissions.")
+                embed = discord.Embed(
+                    title=f"Failed to DM {member.name}",
+                    description="Failed to DM the user due to their privacy settings.",
+                    color=0xfc0303
+                )
+                embed.set_thumbnail(url=member.avatar_url)
+                await fail_channel.send(embed=embed)
             else:
                 log.warning(f"Fail channel not configured for guild {member.guild.id}")
             return
-
-        # Logging the failure to kick
-        fail_channel_id = await self.config.guild(member.guild).fail_channel()
-        fail_channel = self.bot.get_channel(fail_channel_id)
-        if fail_channel:
-            await fail_channel.send(f"Failed to DM the user {member.name} ({member.id}) due to their privacy settings.")
-        else:
-            log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
     @commands.group()
     async def autoban(self, ctx):
@@ -105,4 +103,4 @@ class NoPfpBan(commands.Cog):
         current_action = await self.config.guild(ctx.guild).autoban_action()
         new_action = "kick" if current_action == "ban" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
-        await ctx.send(f"Autoban action set to: {new_action}")
+        await ctx.send(f"Autoban action set
