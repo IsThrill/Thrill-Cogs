@@ -10,7 +10,7 @@ class NoPfpBan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=2706371337)
-        default_guild_settings = {"autoban_enabled": False, "autoban_reason": "Automated ban: No profile picture"}
+        default_guild_settings = {"autoban_enabled": False, "autoban_reason": "Automated ban: No profile picture", "autoban_action": "ban"}
         self.config.register_guild(**default_guild_settings)
 
     async def red_delete_data_for_user(self, **kwargs):
@@ -21,10 +21,14 @@ class NoPfpBan(commands.Cog):
     async def on_member_join(self, member):
         autoban_enabled = await self.config.guild(member.guild).autoban_enabled()
         autoban_reason = await self.config.guild(member.guild).autoban_reason()
+        autoban_action = await self.config.guild(member.guild).autoban_action()
         if autoban_enabled and not member.avatar:
             try:
                 await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
-                await member.ban(reason=autoban_reason)
+                if autoban_action == "ban":
+                    await member.ban(reason=autoban_reason)
+                elif autoban_action == "kick":
+                    await member.kick(reason=autoban_reason)
             except discord.Forbidden:
                 log.info(f"NoPfpBan cog does not have permissions to ban in guild {member.guild.id}")
                 await self.kick_user(member, autoban_reason)
@@ -46,7 +50,7 @@ class NoPfpBan(commands.Cog):
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
-            await fail_channel.send(f"Failed to DM the user {member.name} ({member.id}) due to there privacy settings.")
+            await fail_channel.send(f"Failed to DM the user {member.name} ({member.id}) due to their privacy settings.")
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
@@ -99,8 +103,6 @@ class NoPfpBan(commands.Cog):
         Toggle between kicking and banning users.
         """
         current_action = await self.config.guild(ctx.guild).autoban_action()
-        new_action = "ban" if current_action == "kick" else "kick" if current_action == "ban" else "ban"
+        new_action = "kick" if current_action == "ban" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
-
-
