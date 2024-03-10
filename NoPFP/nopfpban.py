@@ -45,14 +45,14 @@ class NoPfpBan(commands.Cog):
             await member.kick(reason=reason)
         except discord.Forbidden:
             log.info(f"NoPfpBan cog does not have permissions to kick in guild {member.guild.id}")
-            await asyncio.sleep(2)  # Wait for 2 seconds to avoid rate-limiting issues
+            await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
             await self.send_fail_embed(member)
 
     async def send_fail_embed(self, member):
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
-            await asyncio.sleep(2)  # Wait for 2 seconds to avoid rate-limiting issues
+            await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
             embed = discord.Embed(
                 title=f"Failed to DM {member.name}",
                 description="Failed to DM the user due to their privacy settings.",
@@ -103,16 +103,4 @@ class NoPfpBan(commands.Cog):
         Set the channel to log failed DMs for autoban.
         Example: [p]autoban setfailchannel #logs
         """
-        await self.config.guild(ctx.guild).fail_channel.set(channel.id)
-        await ctx.send(f"Fail channel set to: {channel.mention}")
-
-    @autoban.command()
-    @commands.has_permissions(administrator=True)
-    async def toggleaction(self, ctx):
-        """
-        Toggle between kicking and banning users.
-        """
-        current_action = await self.config.guild(ctx.guild).autoban_action()
-        new_action = "kick" if current_action == "ban" else "ban"
-        await self.config.guild(ctx.guild).autoban_action.set(new_action)
-        await ctx.send(f"Autoban action set to: {new_action}")
+        await self.config.g
