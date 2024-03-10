@@ -30,7 +30,7 @@ class NoPfpBan(commands.Cog):
         if autoban_enabled and not member.avatar:
             try:
                 await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
-                await asyncio.sleep(3)  # Wait for 5 seconds before taking action
+                await asyncio.sleep(3)  # Wait for 3 seconds before taking action
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
@@ -44,7 +44,14 @@ class NoPfpBan(commands.Cog):
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
             try:
-                await fail_channel.send(f"Failed to send a message to {member.name} due to their privacy settings.")
+                embed = discord.Embed(
+                    title="Failed to Send Message",
+                    description=f"Failed to send a message to {member.name} due to their privacy settings.",
+                    color=discord.Color.red()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                await fail_channel.send(embed=embed)
             except discord.Forbidden:
                 log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
         else:
@@ -52,9 +59,10 @@ class NoPfpBan(commands.Cog):
             log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
 
 
+
     async def kick_user(self, member, reason):
         try:
-            await asyncio.sleep(3)  # Wait for 5 seconds before kicking the user
+            await asyncio.sleep(3)  # Wait for 3 seconds before kicking the user
             await member.kick(reason=reason)
         except discord.Forbidden:
             log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
