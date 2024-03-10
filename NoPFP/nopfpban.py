@@ -30,26 +30,16 @@ class NoPfpBan(commands.Cog):
         if autoban_enabled and not member.avatar:
             try:
                 await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
-                await asyncio.sleep(7)  # Wait for 7 seconds before taking action
+                await asyncio.sleep(5)  # Wait for 5 seconds before taking action
                 if autoban_action == "ban":
                     await member.ban(reason=autoban_reason)
                 elif autoban_action == "kick":
                     await member.kick(reason=autoban_reason)
             except discord.Forbidden:
-                log.info(f"User, {member.guild.id} has been banned for Invalid PFP")
                 await self.kick_user(member, autoban_reason)
-
-    async def kick_user(self, member, reason):
-        try:
-            await asyncio.sleep(7)  # Wait for 7 seconds before kicking the user
-            await member.kick(reason=reason)
-        except discord.Forbidden:
-            log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
-            await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
-            await self.send_fail_message(member)
+                await self.send_fail_message(member)
 
     async def send_fail_message(self, member):
-        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail message
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
@@ -60,6 +50,15 @@ class NoPfpBan(commands.Cog):
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
             log.info(f"Failed to send a message to {member.name} due to their privacy settings.")
+
+
+    async def kick_user(self, member, reason):
+        try:
+            await asyncio.sleep(5)  # Wait for 5 seconds before kicking the user
+            await member.kick(reason=reason)
+        except discord.Forbidden:
+            log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
+            await self.send_fail_message(member)
 
     @commands.group()
     @commands.has_permissions(administrator=True)
