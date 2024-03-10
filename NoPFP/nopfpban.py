@@ -99,7 +99,7 @@ class NoPfpBan(commands.Cog):
         Toggle between kicking and banning users.
         """
         current_action = await self.config.guild(ctx.guild).autoban_action()
-        new_action = "ban" if current_action == "kick" else "kick"
+        new_action = "ban" if current_action == "kick" else "kick" if current_action == "ban" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
 
