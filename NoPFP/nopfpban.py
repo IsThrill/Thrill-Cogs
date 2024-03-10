@@ -48,44 +48,6 @@ class NoPfpBan(commands.Cog):
         else:
             await self.send_kick_message(member)
 
-    async def send_kick_message(self, member):
-        fail_channel_id = await self.config.guild(member.guild).fail_channel()
-        fail_channel = self.bot.get_channel(fail_channel_id)
-        if fail_channel:
-            try:
-                embed = discord.Embed(
-                    title="No PFP > User Kicked!",
-                    description=f"**{member.name}** ({member.id}) was kicked due to No Profile Picture.",
-                    color=discord.Color.orange()
-                )
-                if member.avatar:
-                    embed.set_thumbnail(url=member.avatar.url)
-                else:
-                    embed.set_thumbnail(url=member.default_avatar.url)
-                await fail_channel.send(embed=embed)
-        else:
-            log.warning(f"Fail channel not configured for guild {member.guild.id}")
-
-    async def send_fail_message(self, member):
-        fail_channel_id = await self.config.guild(member.guild).fail_channel()
-        fail_channel = self.bot.get_channel(fail_channel_id)
-        if fail_channel:
-            try:
-                embed = discord.Embed(
-                    title="No PFP > User Removed!",
-                    description=f"Failed to send a message to **{member.name}** ({member.id}) due to their privacy settings.",
-                    color=discord.Color.red()
-                )
-                if member.avatar:
-                    embed.set_thumbnail(url=member.avatar.url)
-                else:
-                    embed.set_thumbnail(url=member.default_avatar.url)
-                await fail_channel.send(embed=embed)
-            except discord.Forbidden:
-                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to their privacy settings.")
-        else:
-            log.warning(f"Fail channel not configured for guild {member.guild.id}")
-
 
     @commands.group()
     @commands.has_permissions(administrator=True)
@@ -144,3 +106,42 @@ class NoPfpBan(commands.Cog):
         new_action = "kick" if current_action == "ban" else "ban"
         await self.config.guild(ctx.guild).autoban_action.set(new_action)
         await ctx.send(f"Autoban action set to: {new_action}")
+
+
+    async def send_kick_message(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                embed = discord.Embed(
+                    title="No PFP > User Kicked!",
+                    description=f"**{member.name}** ({member.id}) was kicked due to No Profile Picture.",
+                    color=discord.Color.orange()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    embed.set_thumbnail(url=member.default_avatar.url)
+                await fail_channel.send(embed=embed)
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
+
+    async def send_fail_message(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                embed = discord.Embed(
+                    title="No PFP > User Removed!",
+                    description=f"Failed to send a message to **{member.name}** ({member.id}) due to their privacy settings.",
+                    color=discord.Color.red()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    embed.set_thumbnail(url=member.default_avatar.url)
+                await fail_channel.send(embed=embed)
+            except discord.Forbidden:
+                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to their privacy settings.")
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
