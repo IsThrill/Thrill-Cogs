@@ -44,7 +44,13 @@ class NoPfpBan(commands.Cog):
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
             try:
-                await fail_channel.send(f"Failed to send a message to {member.name} due to their privacy settings.")
+                embed = discord.Embed(
+                    title="Failed to Send Message",
+                    description=f"Failed to send a message to {member.name} due to their privacy settings.",
+                    color=discord.Color.red()
+                )
+                embed.set_thumbnail(url=member.avatar_url)
+                await fail_channel.send(embed=embed)
             except discord.Forbidden:
                 log.warning(f"Failed to send a message to {member.name} due to their privacy settings.")
         else:
