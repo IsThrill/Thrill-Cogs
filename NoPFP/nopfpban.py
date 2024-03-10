@@ -37,22 +37,22 @@ class NoPfpBan(commands.Cog):
                 elif autoban_action == "kick":
                     await member.kick(reason=autoban_reason)
             except discord.Forbidden:
-                log.info(f"NoPfpBan cog does not have permissions to ban in guild {member.guild.id}")
+                log.info(f"User, {member.guild.id} has been banned for Invalid PFP")
                 await self.kick_user(member, autoban_reason)
 
     async def kick_user(self, member, reason):
         try:
             await member.kick(reason=reason)
         except discord.Forbidden:
-            log.info(f"NoPfpBan cog does not have permissions to kick in guild {member.guild.id}")
+            log.info(f"User, {member.guild.id} has been kicked for Invalid PFP")
             await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
             await self.send_fail_embed(member)
 
     async def send_fail_embed(self, member):
+        await asyncio.sleep(5)  # Wait for 5 seconds before sending the fail embed
         fail_channel_id = await self.config.guild(member.guild).fail_channel()
         fail_channel = self.bot.get_channel(fail_channel_id)
         if fail_channel:
-            await asyncio.sleep(5)  # Wait for 5 seconds to avoid rate-limiting issues
             embed = discord.Embed(
                 title=f"Failed to DM {member.name}",
                 description="Failed to DM the user due to their privacy settings.",
@@ -65,23 +65,27 @@ class NoPfpBan(commands.Cog):
             log.info(f"Failed to DM {member.name} due to their privacy settings.")
 
     @commands.group()
+    @commands.has_permissions(administrator=True)
     async def autoban(self, ctx):
         """Manage autoban settings."""
         pass
 
     @autoban.command()
+    @commands.has_permissions(administrator=True)
     async def enable(self, ctx):
         """Enable autoban in this guild for users with no profile picture."""
         await self.config.guild(ctx.guild).autoban_enabled.set(True)
         await ctx.send("Autoban enabled in this guild.")
 
     @autoban.command()
+    @commands.has_permissions(administrator=True)
     async def disable(self, ctx):
         """Disable autoban in this guild for users with no profile picture."""
         await self.config.guild(ctx.guild).autoban_enabled.set(False)
         await ctx.send("Autoban disabled in this guild.")
 
     @autoban.command()
+    @commands.has_permissions(administrator=True)
     async def reason(self, ctx, *, reason: str):
         """
         Set the automatic ban reason, for this guild.
@@ -91,6 +95,7 @@ class NoPfpBan(commands.Cog):
         await ctx.send(f"Autoban audit log reason set to: `{reason}`")
 
     @autoban.command()
+    @commands.has_permissions(administrator=True)
     async def status(self, ctx):
         """Check the status of autoban."""
         autoban_enabled = await self.config.guild(ctx.guild).autoban_enabled()
