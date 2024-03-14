@@ -1,7 +1,7 @@
 from redbot.core import commands, Config
 import discord
 
-class AutoEmbed(commands.Cog):
+class AutoEmbeder(commands.Cog):
     """Embeds A Message Based On Reactions In A Specified Channel."""
 
     def __init__(self, bot):
@@ -88,4 +88,4 @@ class AutoEmbed(commands.Cog):
             await ctx.send("You are not allowed to use this command.")
 
 def setup(bot):
-    bot.add_cog(AutoEmbed(bot))
+    bot.add_cog(AutoEmbeder(bot))
