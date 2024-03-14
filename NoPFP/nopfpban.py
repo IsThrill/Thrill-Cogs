@@ -64,7 +64,7 @@ class NoPfpBan(commands.Cog):
                     embed.set_thumbnail(url=member.default_avatar.url)
                 await fail_channel.send(embed=embed)
             except discord.Forbidden:
-                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to lack of permissions.")
+                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to there privacy settings.")
         else:
             log.warning(f"Fail channel not configured for guild {member.guild.id}")
 
