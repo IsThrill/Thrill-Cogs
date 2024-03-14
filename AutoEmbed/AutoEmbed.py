@@ -1,6 +1,8 @@
 from redbot.core import commands, Config
 import discord
 
+log = logging.getLogger("red.isthrill.AutoEmbeder")
+
 class AutoEmbeder(commands.Cog):
     """Embeds A Message Based On Reactions In A Specified Channel."""
 
@@ -86,6 +88,3 @@ class AutoEmbeder(commands.Cog):
         """Error handler for the cog."""
         if isinstance(error, commands.CheckFailure):
             await ctx.send("You are not allowed to use this command.")
-
-def setup(bot):
-    bot.add_cog(AutoEmbeder(bot))
