@@ -1,3 +1,4 @@
+import logging
 from redbot.core import commands, Config
 import discord
 
