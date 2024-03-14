@@ -5,7 +5,7 @@ import logging
 log = logging.getLogger("red.isthrill.autoembed")
 
 class AutoEmbed(commands.Cog):
-    """Embeds A Message Based On Reactions In A Specified Channel."""
+    """Embeds a message based on reactions in a specified channel."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -30,7 +30,8 @@ class AutoEmbed(commands.Cog):
             return
 
         if reaction.message.author.bot:
-            if reaction.message.channel.id == await self.config.guild(reaction.message.guild).auto_react_channel():
+            auto_react_channel_id = await self.config.guild(reaction.message.guild).auto_react_channel()
+            if reaction.message.channel.id == auto_react_channel_id:
                 if reaction.emoji == "✅":  # Checkmark emoji
                     await self.create_embed(reaction.message)
                     await reaction.message.delete()
@@ -59,7 +60,7 @@ class AutoEmbed(commands.Cog):
         """Set the embed options."""
         if color:
             try:
-                color = discord.Color(int(color, 16))  # Convert hex color to discord.Color object
+                color = discord.Color(int(color, 16))  
             except ValueError:
                 await ctx.send("Invalid color format. Please provide a hexadecimal color code.")
                 return
