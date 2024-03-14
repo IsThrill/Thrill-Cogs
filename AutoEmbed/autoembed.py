@@ -73,15 +73,6 @@ class AutoEmbed(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def toggleembed(self, ctx):
-        """Toggle embedding messages."""
-        current_status = await self.config.guild(ctx.guild).embed_enabled()
-        new_status = not current_status
-        await self.config.guild(ctx.guild).embed_enabled.set(new_status)
-        await ctx.send(f"Embedding messages is now {'enabled' if new_status else 'disabled'}.")
-
-    @commands.command()
-    @commands.has_permissions(administrator=True)
     async def setautoreactchannel(self, ctx, channel: discord.TextChannel):
         """Set the channel where the bot will auto react to messages."""
         await self.config.guild(ctx.guild).auto_react_channel.set(channel.id)
