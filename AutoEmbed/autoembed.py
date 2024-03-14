@@ -1,5 +1,6 @@
 from redbot.core import commands, Config
 import discord
+import logging
 
 log = logging.getLogger("red.isthrill.autoembed")
 
