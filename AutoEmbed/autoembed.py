@@ -56,7 +56,7 @@ class AutoEmbed(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def set_embed_options(self, ctx, title=None, thumbnail=None, color=None):
+    async def setembedoptions(self, ctx, title=None, thumbnail=None, color=None):
         """Set the embed options."""
         if color:
             try:
@@ -73,7 +73,7 @@ class AutoEmbed(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def toggle_embed(self, ctx):
+    async def toggleembed(self, ctx):
         """Toggle embedding messages."""
         current_status = await self.config.guild(ctx.guild).embed_enabled()
         new_status = not current_status
@@ -82,12 +82,7 @@ class AutoEmbed(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def set_auto_react_channel(self, ctx, channel: discord.TextChannel):
+    async def setautoreactchannel(self, ctx, channel: discord.TextChannel):
         """Set the channel where the bot will auto react to messages."""
         await self.config.guild(ctx.guild).auto_react_channel.set(channel.id)
         await ctx.send(f"Auto react channel set to {channel.mention}.")
-
-    async def cog_command_error(self, ctx, error):
-        """Error handler for the cog."""
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send("You are not allowed to use this command.")
