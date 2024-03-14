@@ -1,4 +1,3 @@
-import logging
 from redbot.core import commands, Config
 import discord
 
@@ -14,7 +13,7 @@ class AutoEmbed(commands.Cog):
             "embed_enabled": True,
             "embed_title": None,
             "embed_thumbnail": None,
-            "embed_color": discord.Color.blue(),
+            "embed_color": discord.Color.blue().value,  
             "auto_react_channel": None
         }
         self.config.register_guild(**default_guild_settings)
@@ -43,7 +42,7 @@ class AutoEmbed(commands.Cog):
         if embed_enabled:
             embed_title = await self.config.guild(message.guild).embed_title()
             embed_thumbnail = await self.config.guild(message.guild).embed_thumbnail()
-            embed_color = await self.config.guild(message.guild).embed_color()
+            embed_color = discord.Color(await self.config.guild(message.guild).embed_color())  
 
             embed = discord.Embed(
                 title=embed_title if embed_title else "Message Embed",
@@ -66,7 +65,8 @@ class AutoEmbed(commands.Cog):
 
         await self.config.guild(ctx.guild).embed_title.set(title)
         await self.config.guild(ctx.guild).embed_thumbnail.set(thumbnail)
-        await self.config.guild(ctx.guild).embed_color.set(color)
+        await self.config.guild(ctx.guild).embed_color.set(color.value) 
+
         await ctx.send("Embed options set successfully.")
 
     @commands.command()
