@@ -14,7 +14,7 @@ class AutoEmbed(commands.Cog):
             "embed_enabled": True,
             "embed_title": None,
             "embed_thumbnail": None,
-            "embed_color": discord.Color.blue().value,  
+            "embed_color": discord.Color.blue().value,
             "auto_react_channel": None
         }
         self.config.register_guild(**default_guild_settings)
@@ -29,45 +29,48 @@ class AutoEmbed(commands.Cog):
         if user.bot:
             return
 
-        if reaction.message.author.bot:
-            auto_react_channel_id = await self.config.guild(reaction.message.guild).auto_react_channel()
-            if reaction.message.channel.id == auto_react_channel_id:
-                if reaction.emoji == "✅":  # Checkmark emoji
-                    await self.create_embed(reaction.message)
-                    await reaction.message.delete()
-                elif reaction.emoji == "❌":  # X emoji
-                    await reaction.message.clear_reactions()
+        auto_react_channel_id = await self.config.guild(reaction.message.guild).auto_react_channel()
+        if reaction.message.channel.id != auto_react_channel_id:
+            return
+
+        if reaction.emoji == "✅":  # Checkmark emoji
+            await self.create_embed(reaction.message)
+            await reaction.message.delete()
+        elif reaction.emoji == "❌":  # X emoji
+            await reaction.message.clear_reactions()
 
     async def create_embed(self, message):
         """Function to create embed from message."""
         embed_enabled = await self.config.guild(message.guild).embed_enabled()
-        if embed_enabled:
-            embed_title = await self.config.guild(message.guild).embed_title()
-            embed_thumbnail = await self.config.guild(message.guild).embed_thumbnail()
-            embed_color = discord.Color(await self.config.guild(message.guild).embed_color())  
+        if not embed_enabled:
+            return
 
-            embed = discord.Embed(
-                title=embed_title if embed_title else "Message Embed",
-                description=message.content,
-                color=embed_color
-            )
-            embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
-            await message.channel.send(embed=embed)
+        embed_title = await self.config.guild(message.guild).embed_title()
+        embed_thumbnail = await self.config.guild(message.guild).embed_thumbnail()
+        embed_color = discord.Color(await self.config.guild(message.guild).embed_color())
+
+        embed = discord.Embed(
+            title=embed_title or "Message Embed",
+            description=message.content,
+            color=embed_color
+        )
+        embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+        await message.channel.send(embed=embed)
 
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def setembedoptions(self, ctx, title=None, thumbnail=None, color=None):
         """Set the embed options."""
-        if color:
-            try:
-                color = discord.Color(int(color, 16))  
-            except ValueError:
-                await ctx.send("Invalid color format. Please provide a hexadecimal color code.")
-                return
+        try:
+            if color:
+                color = discord.Color(int(color, 16))
+        except ValueError:
+            await ctx.send("Invalid color format. Please provide a hexadecimal color code.")
+            return
 
         await self.config.guild(ctx.guild).embed_title.set(title)
         await self.config.guild(ctx.guild).embed_thumbnail.set(thumbnail)
-        await self.config.guild(ctx.guild).embed_color.set(color.value) 
+        await self.config.guild(ctx.guild).embed_color.set(color.value if color else None)
 
         await ctx.send("Embed options set successfully.")
 
