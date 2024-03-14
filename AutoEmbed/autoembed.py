@@ -1,9 +1,9 @@
 from redbot.core import commands, Config
 import discord
 
-log = logging.getLogger("red.isthrill.AutoEmbeder")
+log = logging.getLogger("red.isthrill.autoembed")
 
-class AutoEmbeder(commands.Cog):
+class AutoEmbed(commands.Cog):
     """Embeds A Message Based On Reactions In A Specified Channel."""
 
     def __init__(self, bot):
