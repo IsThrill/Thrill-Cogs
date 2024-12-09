@@ -1,8 +1,9 @@
 from redbot.core import commands
 
-from .imagedeletelogger import ImageDeleteLogger
+from .imagedeletionlogger import ImageDeletionLogger
+
+__red_end_user_data_statement__ = "This cog does not persistently store data or metadata about users."
 
 async def setup(bot: commands.Bot):
-    """Setup function for the cog, adding it to the bot."""
-    image_logger = ImageDeleteLogger(bot)
-    await bot.add_cog(image_logger)
+    cog = ImageDeletionLogger(bot)
+    await bot.add_cog(cog)
