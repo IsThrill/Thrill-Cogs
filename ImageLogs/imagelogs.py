@@ -1,6 +1,8 @@
 import discord
+from discord.ext import commands
+from redbot.core import Config
+
 import logging
-from redbot.core import commands, Config
 
 log = logging.getLogger("red.isthrill.imagelogs")
 
@@ -19,25 +21,45 @@ class ImageLogs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        """Logs when a message is deleted, regardless of content."""
-        
+        """Logs images when a message is deleted."""
+        if not message.guild:
+            return  # Ignore DMs
+
         # Fetch the log channel
         log_channel_id = await self.config.guild(message.guild).log_channel()
-        log.info(f"Log channel ID fetched: {log_channel_id}")  # Debug log
-        
-        if log_channel_id:
-            log_channel = self.bot.get_channel(log_channel_id)
+        if not log_channel_id:
+            return  # No log channel configured
 
-            if log_channel:
-                # Send "Yippee" message to the log channel when any message is deleted
-                await log_channel.send("Yippee")
-                log.info("Yippee message sent successfully.")  # Debug log
-            else:
-                await message.channel.send("Log channel not found.")
-                log.error("Log channel not found. Check the channel ID.")
-        else:
-            await message.channel.send("Log channel is not set.")
-            log.warning("No log channel set.")
+        log_channel = self.bot.get_channel(log_channel_id)
+        if not log_channel:
+            log.warning(f"Log channel with ID {log_channel_id} not found in guild {message.guild.name}.")
+            return
+
+        # Extract image attachments
+        images = [
+            attachment for attachment in message.attachments 
+            if attachment.content_type and attachment.content_type.startswith("image")
+        ]
+        
+        if not images:
+            return  # No images to log
+
+        embeds = []
+        for index, image in enumerate(images):
+            embed = discord.Embed(
+                title=f"Deleted Image {index + 1} of {len(images)}",
+                description=f"Message deleted in {message.channel.mention}",
+                color=discord.Color.red(),
+                timestamp=message.created_at
+            )
+            embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+            embed.set_footer(text=f"Message ID: {message.id}")
+            embed.set_image(url=image.url)
+            embeds.append(embed)
+
+        # Send embeds in batches of 10
+        for i in range(0, len(embeds), 10):
+            await log_channel.send(embeds=embeds[i:i + 10])
 
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -59,7 +81,7 @@ class ImageLogs(commands.Cog):
             await ctx.send(f"The current log channel is: {log_channel.mention}")
         else:
             await ctx.send("No log channel has been set.")
-    
+
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def removelogchannel(self, ctx):
