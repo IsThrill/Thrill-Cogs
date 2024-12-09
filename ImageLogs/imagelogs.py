@@ -47,14 +47,19 @@ class ImageLogs(commands.Cog):
                             embed.set_footer(text=f"Message deleted at {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
                             
                             # Send the embed to the specified log channel
-                            await log_channel.send(embed=embed)
+                            try:
+                                await log_channel.send(embed=embed)
+                            except discord.Forbidden:
+                                await message.channel.send("I do not have permission to send messages in the specified log channel.")
+                            except discord.HTTPException as e:
+                                await message.channel.send(f"Failed to send the log due to an HTTP error: {e}")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def setlogchannel(self, ctx, channel: discord.TextChannel):
         """
         Set the channel to log deleted image events.
-        Example: [p]imagedelogger setlogchannel #image-logs
+        Example: [p]setlogchannel #image-logs
         """
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         await ctx.send(f"Log channel set to: {channel.mention}")
@@ -75,7 +80,7 @@ class ImageLogs(commands.Cog):
     async def removelogchannel(self, ctx):
         """
         Remove the current log channel.
-        Example: [p]imagedelogger removelogchannel
+        Example: [p]removelogchannel
         """
         await self.config.guild(ctx.guild).log_channel.set(None)
         await ctx.send("The log channel has been reset. No further image deletions will be logged until a new channel is set.")
