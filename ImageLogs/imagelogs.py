@@ -83,3 +83,13 @@ class ImageLogs(commands.Cog):
             await ctx.send(f"The current log channel is: {log_channel.mention}")
         else:
             await ctx.send("No log channel has been set.")
+    
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def removelogchannel(self, ctx):
+        """
+        Remove the current log channel.
+        Example: [p]imagedelogger removelogchannel
+        """
+        await self.config.guild(ctx.guild).log_channel.set(None)
+        await ctx.send("The log channel has been reset. No further image deletions will be logged until a new channel is set.")
