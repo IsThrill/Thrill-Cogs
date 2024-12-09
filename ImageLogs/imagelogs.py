@@ -1,12 +1,10 @@
 import discord
-from discord.ext import commands
-from redbot.core import Config
-
+from redbot.core import commands, Config
 import logging
 
 log = logging.getLogger("red.isthrill.imagelogs")
 
-class ImageLogs(commands.Cog):
+class ImageLogs(commands.Cog):  # Use redbot.core.commands.Cog
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
