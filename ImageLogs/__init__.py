@@ -1,6 +1,6 @@
 from redbot.core import commands
 
-from .image_delete_logger import ImageDeleteLogger
+from .imagedeletelogger import ImageDeleteLogger
 
 async def setup(bot: commands.Bot):
 
