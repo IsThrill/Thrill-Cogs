@@ -1,11 +1,12 @@
 import discord
 import logging
+import asyncio
 
 from redbot.core import commands, Config
 
-log = logging.getLogger("red.imagedeletionlogger")
+log = logging.getLogger("red.isthrill.imagelogs")
 
-class ImageDeletionLogger(commands.Cog):
+class imagelogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
@@ -47,13 +48,8 @@ class ImageDeletionLogger(commands.Cog):
                 else:
                     log.warning(f"Log channel not set for guild {message.guild.id}")
 
-    @commands.group()
-    @commands.has_permissions(administrator=True)
-    async def imagedelogger(self, ctx):
-        """Manage image deletion logging settings."""
-        pass
 
-    @imagedelogger.command()
+    @imagelogger.command()
     @commands.has_permissions(administrator=True)
     async def setlogchannel(self, ctx, channel: discord.TextChannel):
         """
@@ -63,7 +59,7 @@ class ImageDeletionLogger(commands.Cog):
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         await ctx.send(f"Log channel set to: {channel.mention}")
 
-    @imagedelogger.command()
+    @imagelogger.command()
     @commands.has_permissions(administrator=True)
     async def checklogchannel(self, ctx):
         """Check the current log channel."""
