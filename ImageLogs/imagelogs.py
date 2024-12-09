@@ -27,6 +27,7 @@ class ImageLogs(commands.Cog):
             image_attachments = [
                 attachment for attachment in message.attachments if attachment.url.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'))
             ]
+            
             if image_attachments:
                 log_channel_id = await self.config.guild(message.guild).log_channel()
                 
@@ -34,6 +35,9 @@ class ImageLogs(commands.Cog):
                     log_channel = self.bot.get_channel(log_channel_id)
                     
                     if log_channel:
+                        # Debug: Check if the log channel is correctly retrieved
+                        log.debug(f"Log channel retrieved: {log_channel.name} ({log_channel.id})")
+                        
                         for attachment in image_attachments:
                             embed = discord.Embed(
                                 title="Image Deleted",
@@ -56,6 +60,7 @@ class ImageLogs(commands.Cog):
                 else:
                     log.warning(f"No log channel set for guild {message.guild.id}")
             else:
+                # Debug: No valid image attachments found
                 log.debug("No valid image attachments found in the deleted message.")
 
     @commands.command()
