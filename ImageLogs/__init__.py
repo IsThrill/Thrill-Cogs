@@ -1,6 +1,6 @@
 from redbot.core import commands
 
-from .image_delete_logger import ImageDeleteLogger  # Import your actual class
+from .image_delete_logger import ImageDeleteLogger
 
 async def setup(bot: commands.Bot):
 
