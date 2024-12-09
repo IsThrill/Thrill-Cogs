@@ -19,36 +19,31 @@ class ImageLogs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        """Logs the deletion of images from messages."""
-        if message.attachments:
-            # Filter out non-image attachments
-            image_attachments = [
-                attachment for attachment in message.attachments if attachment.url.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'))
-            ]
-            
-            if image_attachments:
-                log_channel_id = await self.config.guild(message.guild).log_channel()
-                log.info(f"Log channel ID fetched: {log_channel_id}")  # Debug log
-                
-                if log_channel_id:
-                    log_channel = self.bot.get_channel(log_channel_id)
+        """Logs when a message is deleted, regardless of content."""
+        
+        # Fetch the log channel
+        log_channel_id = await self.config.guild(message.guild).log_channel()
+        log.info(f"Log channel ID fetched: {log_channel_id}")  # Debug log
+        
+        if log_channel_id:
+            log_channel = self.bot.get_channel(log_channel_id)
 
-                    if log_channel:
-                        # Send a simple "Yippee" message to the log channel when an image is deleted
-                        await log_channel.send("Yippee")
-                        log.info("Yippee message sent successfully.")  # Debug log
-                    else:
-                        await message.channel.send("Log channel not found.")
-                        log.error("Log channel not found. Check the channel ID.")
-                else:
-                    await message.channel.send("Log channel is not set.")
-                    log.warning("No log channel set.")
+            if log_channel:
+                # Send "Yippee" message to the log channel when any message is deleted
+                await log_channel.send("Yippee")
+                log.info("Yippee message sent successfully.")  # Debug log
+            else:
+                await message.channel.send("Log channel not found.")
+                log.error("Log channel not found. Check the channel ID.")
+        else:
+            await message.channel.send("Log channel is not set.")
+            log.warning("No log channel set.")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def setlogchannel(self, ctx, channel: discord.TextChannel):
         """
-        Set the channel to log deleted image events.
+        Set the channel to log deleted message events.
         Example: [p]setlogchannel #image-logs
         """
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
@@ -73,4 +68,4 @@ class ImageLogs(commands.Cog):
         Example: [p]removelogchannel
         """
         await self.config.guild(ctx.guild).log_channel.set(None)
-        await ctx.send("The log channel has been reset. No further image deletions will be logged until a new channel is set.")
+        await ctx.send("The log channel has been reset. No further deletions will be logged until a new channel is set.")
