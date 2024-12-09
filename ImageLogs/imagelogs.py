@@ -35,9 +35,6 @@ class ImageLogs(commands.Cog):
                     log_channel = self.bot.get_channel(log_channel_id)
                     
                     if log_channel:
-                        # Debug: Check if the log channel is correctly retrieved
-                        log.debug(f"Log channel retrieved: {log_channel.name} ({log_channel.id})")
-                        
                         for attachment in image_attachments:
                             embed = discord.Embed(
                                 title="Image Deleted",
@@ -49,19 +46,8 @@ class ImageLogs(commands.Cog):
                             embed.add_field(name="Message Author", value=str(message.author))
                             embed.set_footer(text=f"Message deleted at {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
                             
-                            try:
-                                await log_channel.send(embed=embed)
-                            except discord.Forbidden:
-                                log.warning(f"Failed to send message to {log_channel} due to insufficient permissions.")
-                            except discord.HTTPException as e:
-                                log.error(f"Error sending to log channel: {e}")
-                    else:
-                        log.warning(f"Invalid log channel ID: {log_channel_id}")
-                else:
-                    log.warning(f"No log channel set for guild {message.guild.id}")
-            else:
-                # Debug: No valid image attachments found
-                log.debug("No valid image attachments found in the deleted message.")
+                            # Send the embed to the specified log channel
+                            await log_channel.send(embed=embed)
 
     @commands.command()
     @commands.has_permissions(administrator=True)
