@@ -48,8 +48,8 @@ class ImageLogs(commands.Cog):
                 else:
                     log.warning(f"Log channel not set for guild {message.guild.id}")
 
-
-    @imagelogger.command()
+    # Change `imagelogger.command()` to `commands.command()`
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def setlogchannel(self, ctx, channel: discord.TextChannel):
         """
@@ -59,7 +59,8 @@ class ImageLogs(commands.Cog):
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         await ctx.send(f"Log channel set to: {channel.mention}")
 
-    @imagelogger.command()
+    # Change `imagelogger.command()` to `commands.command()`
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def checklogchannel(self, ctx):
         """Check the current log channel."""
