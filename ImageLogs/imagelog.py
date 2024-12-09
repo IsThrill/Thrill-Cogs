@@ -69,4 +69,4 @@ class ImageLogs(commands.Cog):
             await ctx.send(f"The current log channel is: {log_channel.mention}")
         else:
             await ctx.send("No log channel has been set.")
-
+        )
