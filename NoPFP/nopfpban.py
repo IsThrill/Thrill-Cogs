@@ -1,15 +1,21 @@
 import discord
 import logging
+import asyncio
+
 from redbot.core import commands, Config
 
-log = logging.getLogger("red.isthrill.imagelogs")
+log = logging.getLogger("red.isthrill.nopfpban")
 
-class ImageLogs(commands.Cog):
+
+class NoPfpBan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
+        self.config = Config.get_conf(self, identifier=2706371337)
         default_guild_settings = {
-            "log_channel": None
+            "autoban_enabled": False,
+            "autoban_reason": "Automated ban: No profile picture",
+            "autoban_action": "ban",
+            "fail_channel": None
         }
         self.config.register_guild(**default_guild_settings)
 
@@ -18,59 +24,124 @@ class ImageLogs(commands.Cog):
         return
 
     @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        """Logs the deletion of images from messages."""
-        if message.attachments:
-            # Filter out non-image attachments
-            image_attachments = [
-                attachment for attachment in message.attachments if attachment.url.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'))
-            ]
-            
-            if image_attachments:
-                log_channel_id = await self.config.guild(message.guild).log_channel()
-                log.info(f"Log channel ID fetched: {log_channel_id}")  # Debug log
-                
-                if log_channel_id:
-                    log_channel = self.bot.get_channel(log_channel_id)
+    async def on_member_join(self, member):
+        autoban_enabled = await self.config.guild(member.guild).autoban_enabled()
+        autoban_reason = await self.config.guild(member.guild).autoban_reason()
+        autoban_action = await self.config.guild(member.guild).autoban_action()
+        if autoban_enabled and not member.avatar:
+            try:
+                await member.send(f"You have been automatically removed from {member.guild.name} due to {autoban_reason}")
+                await asyncio.sleep(3)  # Wait for 3 seconds before taking action
+                if autoban_action == "ban":
+                    await member.ban(reason=autoban_reason)
+                elif autoban_action == "kick":
+                    await self.kick_user(member, autoban_reason)
+            except discord.Forbidden:
+                await self.kick_user(member, autoban_reason)
+                await self.send_fail_message(member)
 
-                    if log_channel:
-                        # Instead of embedding, just send a simple confirmation message
-                        await log_channel.send("Image Logged Successfully")
-                        log.info("Image logged successfully.")  # Debug log
-                    else:
-                        await message.channel.send("Log channel not found.")
-                        log.error("Log channel not found. Check the channel ID.")
-                else:
-                    await message.channel.send("Log channel is not set.")
-                    log.warning("No log channel set.")
-
-    @commands.command()
-    @commands.has_permissions(administrator=True)
-    async def setlogchannel(self, ctx, channel: discord.TextChannel):
-        """
-        Set the channel to log deleted image events.
-        Example: [p]setlogchannel #image-logs
-        """
-        await self.config.guild(ctx.guild).log_channel.set(channel.id)
-        await ctx.send(f"Log channel set to: {channel.mention}")
-
-    @commands.command()
-    @commands.has_permissions(administrator=True)
-    async def checklogchannel(self, ctx):
-        """Check the current log channel."""
-        log_channel_id = await self.config.guild(ctx.guild).log_channel()
-        if log_channel_id:
-            log_channel = self.bot.get_channel(log_channel_id)
-            await ctx.send(f"The current log channel is: {log_channel.mention}")
+    async def kick_user(self, member, reason):
+        try:
+            await member.kick(reason=reason)
+        except discord.Forbidden:
+            await self.send_fail_message(member)
         else:
-            await ctx.send("No log channel has been set.")
-    
-    @commands.command()
+            await self.send_kick_message(member)
+
+    async def send_kick_message(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                embed = discord.Embed(
+                    title="No PFP > User Kicked!",
+                    description=f"**{member.name}** ({member.id}) was kicked due to No Profile Picture.",
+                    color=discord.Color.orange()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    embed.set_thumbnail(url=member.default_avatar.url)
+                await fail_channel.send(embed=embed)
+            except discord.Forbidden:
+                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to there privacy settings.")
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
+
+    async def send_fail_message(self, member):
+        fail_channel_id = await self.config.guild(member.guild).fail_channel()
+        fail_channel = self.bot.get_channel(fail_channel_id)
+        if fail_channel:
+            try:
+                embed = discord.Embed(
+                    title="No PFP > User Removed!",
+                    description=f"Failed to send a message to **{member.name}** ({member.id}) due to their privacy settings.",
+                    color=discord.Color.red()
+                )
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+                else:
+                    embed.set_thumbnail(url=member.default_avatar.url)
+                await fail_channel.send(embed=embed)
+            except discord.Forbidden:
+                log.warning(f"Failed to send a message to {member.name} ({member.id}) due to their privacy settings.")
+        else:
+            log.warning(f"Fail channel not configured for guild {member.guild.id}")
+
+    @commands.group()
     @commands.has_permissions(administrator=True)
-    async def removelogchannel(self, ctx):
+    async def autoban(self, ctx):
+        """Manage autoban settings."""
+        pass
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def enable(self, ctx):
+        """Enable autoban in this guild for users with no profile picture."""
+        await self.config.guild(ctx.guild).autoban_enabled.set(True)
+        await ctx.send("Autoban enabled in this guild.")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def disable(self, ctx):
+        """Disable autoban in this guild for users with no profile picture."""
+        await self.config.guild(ctx.guild).autoban_enabled.set(False)
+        await ctx.send("Autoban disabled in this guild.")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def reason(self, ctx, *, reason: str):
         """
-        Remove the current log channel.
-        Example: [p]removelogchannel
+        Set the automatic ban reason, for this guild.
+        It will show in the audit log as the reason for removing the user.
         """
-        await self.config.guild(ctx.guild).log_channel.set(None)
-        await ctx.send("The log channel has been reset. No further image deletions will be logged until a new channel is set.")
+        await self.config.guild(ctx.guild).autoban_reason.set(reason)
+        await ctx.send(f"Autoban audit log reason set to: `{reason}`")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def status(self, ctx):
+        """Check the status of autoban."""
+        autoban_enabled = await self.config.guild(ctx.guild).autoban_enabled()
+        await ctx.send(f"Autoban is {'enabled' if autoban_enabled else 'disabled'} in this guild.")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def setfailchannel(self, ctx, channel: discord.TextChannel):
+        """
+        Set the channel to log failed DMs for autoban.
+        Example: [p]autoban setfailchannel #logs
+        """
+        await self.config.guild(ctx.guild).fail_channel.set(channel.id)
+        await ctx.send(f"Fail channel set to: {channel.mention}")
+
+    @autoban.command()
+    @commands.has_permissions(administrator=True)
+    async def toggleaction(self, ctx):
+        """
+        Toggle between kicking and banning users.
+        """
+        current_action = await self.config.guild(ctx.guild).autoban_action()
+        new_action = "kick" if current_action == "ban" else "ban"
+        await self.config.guild(ctx.guild).autoban_action.set(new_action)
+        await ctx.send(f"Autoban action set to: {new_action}")
