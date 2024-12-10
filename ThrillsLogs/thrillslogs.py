@@ -82,6 +82,13 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
 
+        # Get the current timestamp in EST timezone
+        est = pytz.timezone('America/New_York')
+        current_time = datetime.datetime.now(est).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+        # Add the EST footer at the bottom
+        embed.set_footer(text=f"Logs displayed in EST - {current_time}")
+
         try:
             await log_channel.send(embed=embed)
         except discord.Forbidden:
