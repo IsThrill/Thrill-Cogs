@@ -1,21 +1,21 @@
 import datetime
 import discord
-from redbot.core import Config, commands, i18n, modlog
+from redbot.core import Config, commands, i18n
 
 _ = i18n.Translator("ThrillsLogs", __file__)
 
 class ThrillsLogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=123456789)  # Unique identifier for this cog
+        self.config = Config.get_conf(self, identifier=123456789)
 
-        # Define the default configuration
+        # Register default configuration
         self.config.register_guild(
             voice_logging_channel=None
         )
 
     async def get_log_channel(self, guild):
-        """Fetch the designated modlog channel."""
+        """Fetch the designated log channel."""
         log_channel_id = await self.config.guild(guild).voice_logging_channel()
         if log_channel_id:
             return guild.get_channel(log_channel_id)
@@ -23,18 +23,18 @@ class ThrillsLogs(commands.Cog):
 
     async def on_voice_state_update(self, member, before, after):
         guild = member.guild
-        time = datetime.datetime.utcnow()
-
         log_channel = await self.get_log_channel(guild)
+
         if not log_channel:
-            return
+            return  # No logging channel configured
+
+        time = datetime.datetime.utcnow()
 
         embed = discord.Embed(
             title="Voice State Update",
             timestamp=time,
             color=discord.Color.blue()
         )
-
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
 
         description = ""
@@ -50,10 +50,7 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Max Members", value=before.channel.user_limit or "Unlimited", inline=True)
 
         elif before.channel != after.channel:
-            description = (
-                f"🔄 **{member.mention} switched channels**\n"
-                f"From **{before.channel.mention}** to **{after.channel.mention}**"
-            )
+            description = f"🔄 **{member.mention} switched channels**\nFrom **{before.channel.mention}** to **{after.channel.mention}**"
             embed.add_field(name="From Channel", value=before.channel.name, inline=True)
             embed.add_field(name="Max Members (From)", value=before.channel.user_limit or "Unlimited", inline=True)
             embed.add_field(name="To Channel", value=after.channel.name, inline=True)
@@ -65,17 +62,21 @@ class ThrillsLogs(commands.Cog):
         embed.description = description
 
         try:
+            # Fetch the most recent audit log entry to verify the action
             if guild.me.guild_permissions.view_audit_log:
                 async for entry in guild.audit_logs(limit=1):
                     if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
                         embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
                         if entry.reason:
                             embed.add_field(name="Reason", value=entry.reason, inline=False)
-
         except discord.Forbidden:
-            pass
+            print(f"Permission denied to view audit logs in {guild.name}")
 
-        await log_channel.send(embed=embed)
+        try:
+            # Send the embed message to the designated log channel
+            await log_channel.send(embed=embed)
+        except discord.Forbidden:
+            print(f"Permission denied to send messages to {log_channel}")
 
     # Main command group for ThrillsLogs
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
@@ -100,7 +101,7 @@ class ThrillsLogs(commands.Cog):
 
     @thrillslogs.command(name="set")
     async def set_voice_channel(self, ctx, channel: discord.TextChannel):
-        """Set the channel where voice activity will be logged."""
+        """Configure the channel where voice activity will be logged."""
         await self.config.guild(ctx.guild).voice_logging_channel.set(channel.id)
         await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
 
@@ -118,6 +119,9 @@ class ThrillsLogs(commands.Cog):
 
     @thrillslogs.command(name="clear")
     async def clear_voice_channel(self, ctx):
-        """Reset the voice logging channel configuration."""
+        """Remove the voice logging channel configuration."""
         await self.config.guild(ctx.guild).voice_logging_channel.clear()
         await ctx.send("✅ Voice logging channel has been reset.")
+
+    async def cog_load(self):
+        self.bot.add_listener(self.on_voice_state_update, "on_voice_state_update")
