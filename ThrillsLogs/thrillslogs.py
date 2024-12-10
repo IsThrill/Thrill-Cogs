@@ -51,6 +51,8 @@ class ThrillsLogs(commands.Cog):
         if avatar_url:
             embed.set_thumbnail(url=avatar_url)
 
+        change_type = None
+
         # When a user joins a voice channel
         if before.channel is None and after.channel:
             embed.title = "Member Joined Channel"
@@ -64,6 +66,8 @@ class ThrillsLogs(commands.Cog):
             if member_mentions:
                 embed.add_field(name="Members In Channel", value="\n".join(member_mentions), inline=False)
 
+            change_type = "join"
+
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
             embed.title = "Member Left Channel"
@@ -76,6 +80,8 @@ class ThrillsLogs(commands.Cog):
 
             if member_mentions:
                 embed.add_field(name="Members In Channel", value="\n".join(member_mentions), inline=False)
+
+            change_type = "leave"
 
         # When a user switches channels
         elif before.channel != after.channel:
@@ -94,10 +100,13 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
 
-        try:
-            await log_channel.send(embed=embed)
-        except discord.Forbidden:
-            print(f"Permission denied to send messages to {log_channel}")
+            change_type = "switch"
+
+        if change_type:
+            try:
+                await log_channel.send(embed=embed)
+            except discord.Forbidden:
+                print(f"Permission denied to send messages to {log_channel}")
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
     async def thrillslogs(self, ctx):
