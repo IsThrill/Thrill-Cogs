@@ -42,6 +42,10 @@ class ThrillsLogs(commands.Cog):
             embed.color = discord.Color.green()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel", value=f"{after.channel.mention}", inline=False)
+
+            # List members in the joined channel
+            members_list = "\n".join([m.mention for m in after.channel.members]) or "None"
+            embed.add_field(name="Members in Channel", value=members_list, inline=False)
             change_type = "join"
 
         # User leaves a voice channel
@@ -50,6 +54,10 @@ class ThrillsLogs(commands.Cog):
             embed.color = discord.Color.red()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel", value=f"{before.channel.mention}", inline=False)
+
+            # List remaining members in the left channel
+            members_list = "\n".join([m.mention for m in before.channel.members]) or "None"
+            embed.add_field(name="Members in Channel", value=members_list, inline=False)
             change_type = "leave"
 
         # User switches voice channels
@@ -59,15 +67,13 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
-            change_type = "switch"
 
-        # User changes mute or deafen state
-        if before.mute != after.mute or before.deaf != after.deaf:
-            action = "Muted" if after.mute else "Unmuted" if before.mute else "Deafened" if after.deaf else "Undeafened"
-            embed.title = f"User {action}"
-            embed.color = discord.Color.orange()
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            change_type = "mute/deafen"
+            # List members in both channels
+            before_members = "\n".join([m.mention for m in before.channel.members]) or "None"
+            after_members = "\n".join([m.mention for m in after.channel.members]) or "None"
+            embed.add_field(name="Members in Previous Channel", value=before_members, inline=False)
+            embed.add_field(name="Members in New Channel", value=after_members, inline=False)
+            change_type = "switch"
 
         # Send the log if there is a change
         if change_type:
