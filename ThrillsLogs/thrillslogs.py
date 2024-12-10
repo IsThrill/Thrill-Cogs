@@ -78,8 +78,23 @@ class ThrillsLogs(commands.Cog):
 
     @commands.group(name="ThrillsLogs", invoke_without_command=True)
     async def thrillsLogs(self, ctx):
-        """Main command group for ThrillsLogs."""
-        await ctx.send("Use subcommands under `ThrillsLogs` to configure voice logging.")
+        """List available subcommands for ThrillsLogs."""
+        commands_list = {
+            "ThrillsLogs set": "Set the channel where voice logging will be enabled.",
+            "ThrillsLogs check": "Check the currently configured voice logging channel.",
+            "ThrillsLogs clear": "Reset the voice logging channel configuration."
+        }
+
+        embed = discord.Embed(
+            title="ThrillsLogs Subcommands",
+            description="Here are the available subcommands:",
+            color=discord.Color.green()
+        )
+
+        for command, description in commands_list.items():
+            embed.add_field(name=f"`{command}`", value=description, inline=False)
+
+        await ctx.send(embed=embed)
 
     @thrillsLogs.command(name="set")
     async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
