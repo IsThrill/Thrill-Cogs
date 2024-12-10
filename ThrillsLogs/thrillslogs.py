@@ -7,11 +7,17 @@ _ = i18n.Translator("ThrillsLogs", __file__)
 class ThrillsLogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=123456789)  # Unique identifier for this cog
+
+        # Define the default configuration
+        self.config.register_guild(
+            voice_logging_channel=None
+        )
 
     async def modlogChannel(self, guild):
         """Fetch the designated modlog channel."""
-        if guild.id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild.id]:
-            log_channel_id = self.bot.settings[guild.id]["voice_logging_channel"]
+        log_channel_id = await self.config.guild(guild).voice_logging_channel()
+        if log_channel_id:
             log_channel = guild.get_channel(log_channel_id)
             if log_channel:
                 return log_channel
@@ -72,6 +78,7 @@ class ThrillsLogs(commands.Cog):
 
         await log_channel.send(embed=embed)
 
+    # Main command group for ThrillsLogs
     @commands.group(name="ThrillsLogs", invoke_without_command=True)
     async def thrillsLogs(self, ctx):
         """List available subcommands for ThrillsLogs."""
@@ -95,18 +102,15 @@ class ThrillsLogs(commands.Cog):
     @thrillsLogs.command(name="set")
     async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
         """Set the channel where voice activity will be logged."""
-        guild_id = ctx.guild.id
-        if guild_id not in self.bot.settings:
-            self.bot.settings[guild_id] = {}
-
-        self.bot.settings[guild_id]["voice_logging_channel"] = channel.id
+        await self.config.guild(ctx.guild).voice_logging_channel.set(channel.id)
         await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
 
     @thrillsLogs.command(name="check")
     async def checkVoiceChannel(self, ctx):
         guild_id = ctx.guild.id
-        if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
-            log_channel_id = self.bot.settings[guild_id]["voice_logging_channel"]
+        log_channel_id = await self.config.guild(ctx.guild).voice_logging_channel()
+
+        if log_channel_id:
             log_channel = ctx.guild.get_channel(log_channel_id)
             if log_channel:
                 await ctx.send(f"✅ The voice logging channel is {log_channel.mention}")
@@ -116,9 +120,6 @@ class ThrillsLogs(commands.Cog):
 
     @thrillsLogs.command(name="clear")
     async def clearVoiceChannel(self, ctx):
-        guild_id = ctx.guild.id
-        if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
-            del self.bot.settings[guild_id]["voice_logging_channel"]
-            await ctx.send("✅ Voice logging channel has been reset.")
-        else:
-            await ctx.send("❌ No voice logging channel has been configured.")
+        """Reset the voice logging channel configuration."""
+        await self.config.guild(ctx.guild).voice_logging_channel.clear()
+        await ctx.send("✅ Voice logging channel has been reset.")
