@@ -9,41 +9,26 @@ class ThrillsLogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=123456789)
-
-        # Register default configuration
-        self.config.register_guild(
-            voice_logging_channel=None
-        )
-
-        # Register the listener for voice updates
+        self.config.register_guild(voice_logging_channel=None)
         self.bot.add_listener(self.on_voice_state_update, "on_voice_state_update")
 
     async def get_log_channel(self, guild):
         """Fetch the designated log channel."""
         log_channel_id = await self.config.guild(guild).voice_logging_channel()
-        if log_channel_id:
-            return guild.get_channel(log_channel_id)
-        return None
+        return guild.get_channel(log_channel_id) if log_channel_id else None
 
     async def on_voice_state_update(self, member, before, after):
         guild = member.guild
         log_channel = await self.get_log_channel(guild)
 
-        if not log_channel:
-            return  # No logging channel configured
-
-        if not log_channel.permissions_for(guild.me).send_messages:
-            print(f"[ERROR] Bot lacks permissions to send messages to {log_channel}")
-            return
+        if not log_channel or not log_channel.permissions_for(guild.me).send_messages:
+            return  # No logging channel or bot lacks permissions
 
         # Get the current timestamp in EST timezone
         est = pytz.timezone('America/New_York')
         current_time = datetime.datetime.now(est)
 
-        embed = discord.Embed(
-            timestamp=current_time,
-            color=discord.Color.default()
-        )
+        embed = discord.Embed(timestamp=current_time)
 
         avatar_url = member.display_avatar.url if member.display_avatar else None
         if avatar_url:
@@ -51,61 +36,40 @@ class ThrillsLogs(commands.Cog):
 
         change_type = None
 
-        # When a user joins a voice channel
+        # User joins a voice channel
         if before.channel is None and after.channel:
             embed.title = "Member Joined Voice Channel"
             embed.color = discord.Color.green()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
-
-            # List members in the joined channel
-            members_list = "\n".join([m.mention for m in after.channel.members]) or "None"
-            embed.add_field(name="Members in Channel", value=members_list, inline=False)
+            embed.add_field(name="Channel", value=f"{after.channel.mention}", inline=False)
             change_type = "join"
 
-        # When a user leaves a voice channel
+        # User leaves a voice channel
         elif after.channel is None and before.channel:
             embed.title = "Member Left Voice Channel"
             embed.color = discord.Color.red()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
-
-            # List remaining members in the left channel
-            members_list = "\n".join([m.mention for m in before.channel.members]) or "None"
-            embed.add_field(name="Members in Channel", value=members_list, inline=False)
+            embed.add_field(name="Channel", value=f"{before.channel.mention}", inline=False)
             change_type = "leave"
 
-        # When a user switches channels
+        # User switches voice channels
         elif before.channel != after.channel:
             embed.title = "Member Switched Channels"
             embed.color = discord.Color.blue()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
-
-            # List members in both channels
-            before_members = "\n".join([m.mention for m in before.channel.members]) or "None"
-            after_members = "\n".join([m.mention for m in after.channel.members]) or "None"
-            embed.add_field(name="Members in Previous Channel", value=before_members, inline=False)
-            embed.add_field(name="Members in New Channel", value=after_members, inline=False)
             change_type = "switch"
 
-        # Log when someone mutes/deafens another user
+        # User changes mute or deafen state
         if before.mute != after.mute or before.deaf != after.deaf:
-            action_user = None
-            if member.guild.me.voice.channel and member.guild.me in after.channel.members:
-                for m in before.channel.members:
-                    if m.guild_permissions.deafen_members or m.guild_permissions.mute_members:
-                        action_user = m
+            action = "Muted" if after.mute else "Unmuted" if before.mute else "Deafened" if after.deaf else "Undeafened"
+            embed.title = f"User {action}"
+            embed.color = discord.Color.orange()
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            change_type = "mute/deafen"
 
-            if action_user:
-                action_type = "Muted" if after.mute else "Unmuted"
-                embed.title = f"User {action_type} by Another Member"
-                embed.color = discord.Color.orange()
-                embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
-                embed.add_field(name="Performed By", value=f"{action_user.mention}", inline=False)
-                change_type = "mute/deafen"
-
+        # Send the log if there is a change
         if change_type:
             try:
                 await log_channel.send(embed=embed)
