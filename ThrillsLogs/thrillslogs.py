@@ -1,5 +1,6 @@
 import datetime
 import discord
+import pytz
 from redbot.core import Config, commands, i18n
 
 _ = i18n.Translator("ThrillsLogs", __file__)
@@ -28,12 +29,13 @@ class ThrillsLogs(commands.Cog):
         if not log_channel:
             return  # No logging channel configured
 
-        # Get the current timestamp as UNIX time (seconds since epoch)
-        time = datetime.datetime.utcnow().timestamp()
+        # Get the current timestamp in EST timezone
+        est = pytz.timezone('America/New_York')
+        current_time = datetime.datetime.now(est)
 
         # Create the embed with a formatted timestamp
         embed = discord.Embed(
-            timestamp=discord.Object(id=int(time)),
+            timestamp=current_time,
             color=discord.Color.default()
         )
 
