@@ -23,6 +23,10 @@ class ThrillsLogs(commands.Cog):
         return None
 
     async def on_voice_state_update(self, member, before, after):
+        # Ignore if only deafening/undeafening changes (no join, leave, or move)
+        if before.deaf == after.deaf and before.mute == after.mute:
+            return
+
         guild = member.guild
         log_channel = await self.get_log_channel(guild)
 
