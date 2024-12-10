@@ -26,8 +26,8 @@ class ThrillsLogs(commands.Cog):
         return None
 
     async def on_voice_state_update(self, member, before, after):
-        # Ignore self-mute and self-deafen changes
-        if member.guild.me in before.channel.members and member.guild.me in after.channel.members:
+        # Ignore self mute/deafen changes
+        if before.mute == after.mute and before.deaf == after.deaf:
             return
 
         guild = member.guild
@@ -40,13 +40,11 @@ class ThrillsLogs(commands.Cog):
         est = pytz.timezone('America/New_York')
         current_time = datetime.datetime.now(est)
 
-        # Create the embed with a formatted timestamp
         embed = discord.Embed(
             timestamp=current_time,
             color=discord.Color.default()
         )
 
-        # Safely add user's avatar thumbnail
         avatar_url = member.display_avatar.url if member.display_avatar else None
         if avatar_url:
             embed.set_thumbnail(url=avatar_url)
@@ -55,32 +53,18 @@ class ThrillsLogs(commands.Cog):
 
         # When a user joins a voice channel
         if before.channel is None and after.channel:
-            embed.title = "Member Joined Channel"
+            embed.title = "Member Joined Voice Channel"
             embed.color = discord.Color.green()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
-
-            members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
-            member_mentions = [m.mention for m in members_list]
-
-            if member_mentions:
-                embed.add_field(name="Members In Channel", value="\n".join(member_mentions), inline=False)
-
             change_type = "join"
 
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
-            embed.title = "Member Left Channel"
+            embed.title = "Member Left Voice Channel"
             embed.color = discord.Color.red()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
-
-            members_list = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
-            member_mentions = [m.mention for m in members_list]
-
-            if member_mentions:
-                embed.add_field(name="Members In Channel", value="\n".join(member_mentions), inline=False)
-
             change_type = "leave"
 
         # When a user switches channels
@@ -90,33 +74,22 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
-
-            members_list_before = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
-            members_list_after = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
-
-            members_in_from_channel = "\n".join([m.mention for m in members_list_before]) if members_list_before else "None"
-            members_in_to_channel = "\n".join([m.mention for m in members_list_after]) if members_list_after else "None"
-
-            embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
-            embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
-
             change_type = "switch"
 
-        # Log staff voice mutes and deafens
-        if member.guild.me in before.channel.members or member.guild.me in after.channel.members:
-            if before.mute != after.mute:
-                embed.title = "Staff Voice Mute Change"
-                embed.color = discord.Color.orange()
-                embed.add_field(name="User", value=f"{member.mention}", inline=False)
-                embed.add_field(name="Mute Status", value="Muted" if after.mute else "Unmuted", inline=False)
-                change_type = "mute"
+        # Log mute/deafen events
+        if before.mute != after.mute:
+            embed.title = "Member Mute Status Changed"
+            embed.color = discord.Color.orange()
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed.add_field(name="Mute Status", value="Muted" if after.mute else "Unmuted", inline=False)
+            change_type = "mute"
 
-            if before.deaf != after.deaf:
-                embed.title = "Staff Voice Deafen Change"
-                embed.color = discord.Color.purple()
-                embed.add_field(name="User", value=f"{member.mention}", inline=False)
-                embed.add_field(name="Deafen Status", value="Deafened" if after.deaf else "Undeafened", inline=False)
-                change_type = "deafen"
+        if before.deaf != after.deaf:
+            embed.title = "Member Deafen Status Changed"
+            embed.color = discord.Color.purple()
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed.add_field(name="Deafen Status", value="Deafened" if after.deaf else "Undeafened", inline=False)
+            change_type = "deafen"
 
         if change_type:
             try:
