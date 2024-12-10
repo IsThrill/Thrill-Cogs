@@ -29,20 +29,10 @@ class ThrillsLogs(commands.Cog):
         if not log_channel:
             return  # No logging channel configured
 
-        # Get the current timestamp in EST timezone
-        est = pytz.timezone('America/New_York')
-        current_time = datetime.datetime.now(est)
-
-        # Format the timestamp as a string
-        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
-
-        # Create the embed with the current timestamp
+        # Create the embed without timestamps
         embed = discord.Embed(
             color=discord.Color.default()
         )
-
-        # Set the embed timestamp to the EST current time
-        embed.timestamp = current_time
 
         # Safely add user's avatar thumbnail
         avatar_url = member.display_avatar.url if member.display_avatar else None
@@ -52,10 +42,9 @@ class ThrillsLogs(commands.Cog):
         # When a user joins a voice channel
         if before.channel is None and after.channel:
             embed.title = "Member Joined Channel"
-            embed.color = discord.Color.green()  # ✅ Green
+            embed.color = discord.Color.green()  
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
-            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
@@ -66,10 +55,9 @@ class ThrillsLogs(commands.Cog):
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
             embed.title = "Member Left Channel"
-            embed.color = discord.Color.red()  # 🔴 Red
+            embed.color = discord.Color.red()  
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
-            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
@@ -80,11 +68,10 @@ class ThrillsLogs(commands.Cog):
         # When a user switches channels
         elif before.channel != after.channel:
             embed.title = "Member Switched Channels"
-            embed.color = discord.Color.blue()  # 🔵 Blue
+            embed.color = discord.Color.blue() 
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
-            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list_before = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             members_list_after = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
