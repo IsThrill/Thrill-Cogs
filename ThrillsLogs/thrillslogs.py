@@ -31,47 +31,51 @@ class ThrillsLogs(commands.Cog):
         time = datetime.datetime.utcnow()
 
         embed = discord.Embed(
-            title="Joined/Left/Switched Channel",
+            title="Voice State Update",
             timestamp=time,
             color=discord.Color.blue()
         )
-        embed.set_thumbnail(url=member.display_avatar.url)  # Set user's avatar as thumbnail
+        embed.set_thumbnail(url=member.display_avatar.url)
 
         description = ""
 
         # When a user joins a voice channel
         if before.channel is None and after.channel:
             description = f"✅ **{member.mention} joined** {after.channel.mention}"
-            embed.add_field(name="Channel Joined", value=after.channel.name, inline=True)
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
 
             # List members currently present in the channel in descending order of join time
             members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min, reverse=True)
             member_mentions = [m.mention for m in members_list]
-            
+
             if member_mentions:
-                embed.add_field(name="Current Members (Descending Order)", value=", ".join(member_mentions), inline=False)
+                embed.add_field(name="Members In Channel (Descending)", value="\n".join(member_mentions), inline=False)
 
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
             description = f"🔴 **{member.mention} left** {before.channel.mention}"
-            embed.add_field(name="Channel Left", value=before.channel.name, inline=True)
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
 
             members_list = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min, reverse=True)
             member_mentions = [m.mention for m in members_list]
 
             if member_mentions:
-                embed.add_field(name="Current Members (Descending Order)", value=", ".join(member_mentions), inline=False)
+                embed.add_field(name="Members In Channel (Descending)", value="\n".join(member_mentions), inline=False)
 
         # When a user switches channels
         elif before.channel != after.channel:
-            description = f"🔄 **{member.mention} switched channels**\nFrom **{before.channel.mention}** to **{after.channel.mention}**"
-            embed.add_field(name="From Channel", value=before.channel.name, inline=True)
+            description = f"🔄 **{member.mention} switched channels**"
+            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
+            embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
 
             members_list_before = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min, reverse=True)
             members_list_after = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min, reverse=True)
 
-            embed.add_field(name="Members in From Channel (Descending)", value=", ".join([m.mention for m in members_list_before]), inline=False)
-            embed.add_field(name="Members in To Channel (Descending)", value=", ".join([m.mention for m in members_list_after]), inline=False)
+            embed.add_field(name="Members In From Channel (Descending)", value="\n".join([m.mention for m in members_list_before]), inline=False)
+            embed.add_field(name="Members In To Channel (Descending)", value="\n".join([m.mention for m in members_list_after]), inline=False)
 
         if not description:
             return
@@ -99,7 +103,6 @@ class ThrillsLogs(commands.Cog):
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
     async def thrillslogs(self, ctx):
-        """List available subcommands for ThrillsLogs."""
         commands_list = {
             "thrillslogs set": "Set the channel where voice logging will be enabled.",
             "thrillslogs check": "Check the currently configured voice logging channel.",
@@ -138,4 +141,3 @@ class ThrillsLogs(commands.Cog):
     async def clear_voice_channel(self, ctx):
         await self.config.guild(ctx.guild).voice_logging_channel.clear()
         await ctx.send("✅ Voice logging channel has been reset.")
-
