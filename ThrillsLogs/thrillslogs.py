@@ -8,7 +8,7 @@ class ThrillsLogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def modlog_channel(self, guild):
+    async def modlogChannel(self, guild):
         """Fetch the designated modlog channel."""
         if guild.id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild.id]:
             log_channel_id = self.bot.settings[guild.id]["voice_logging_channel"]
@@ -17,12 +17,11 @@ class ThrillsLogs(commands.Cog):
                 return log_channel
         return None
 
-    async def on_voice_state_update(self, member, before, after):
+    async def onVoiceStateUpdate(self, member, before, after):
         guild = member.guild
         time = datetime.datetime.utcnow()
 
-        # Get the log channel
-        log_channel = await self.modlog_channel(guild)
+        log_channel = await self.modlogChannel(guild)
         if not log_channel:
             return
 
@@ -94,3 +93,30 @@ class ThrillsLogs(commands.Cog):
             pass  # No audit log access
 
         await log_channel.send(embed=embed)
+
+    async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
+        """Set the channel where voice activity will be logged."""
+        guild_id = ctx.guild.id
+        if guild_id not in self.bot.settings:
+            self.bot.settings[guild_id] = {}
+
+        self.bot.settings[guild_id]["voice_logging_channel"] = channel.id
+        await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
+
+    async def checkVoiceChannel(self, ctx):
+        guild_id = ctx.guild.id
+        if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
+            log_channel_id = self.bot.settings[guild_id]["voice_logging_channel"]
+            log_channel = ctx.guild.get_channel(log_channel_id)
+            if log_channel:
+                await ctx.send(f"✅ The voice logging channel is {log_channel.mention}")
+                return
+        await ctx.send("❌ No voice logging channel has been set.")
+
+    async def clearVoiceChannel(self, ctx):
+        guild_id = ctx.guild.id
+        if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
+            del self.bot.settings[guild_id]["voice_logging_channel"]
+            await ctx.send("✅ Voice logging channel has been reset.")
+        else:
+            await ctx.send("❌ No voice logging channel has been configured.")
