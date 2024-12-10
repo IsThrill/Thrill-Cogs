@@ -29,8 +29,13 @@ class ThrillsLogs(commands.Cog):
         if not log_channel:
             return  # No logging channel configured
 
-        # Create the embed without timestamps
+        # Get the current timestamp in EST timezone
+        est = pytz.timezone('America/New_York')
+        current_time = datetime.datetime.now(est)
+
+        # Create the embed with a formatted timestamp
         embed = discord.Embed(
+            timestamp=current_time,
             color=discord.Color.default()
         )
 
@@ -68,7 +73,7 @@ class ThrillsLogs(commands.Cog):
         # When a user switches channels
         elif before.channel != after.channel:
             embed.title = "Member Switched Channels"
-            embed.color = discord.Color.blue() 
+            embed.color = discord.Color.blue()  
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
@@ -82,12 +87,16 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
 
-        # Get the current timestamp in EST timezone
-        est = pytz.timezone('America/New_York')
-        current_time = datetime.datetime.now(est).strftime("%Y-%m-%d %H:%M:%S %Z")
+        try:
+            if guild.me.guild_permissions.view_audit_log:
+                async for entry in guild.audit_logs(limit=1):
+                    if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
+                        embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
+                        if entry.reason:
+                            embed.add_field(name="Reason", value=entry.reason, inline=False)
 
-        # Add the EST footer at the bottom
-        embed.set_footer(text=f"{current_time}")
+        except discord.Forbidden:
+            print(f"Permission denied to view audit logs in {guild.name}")
 
         try:
             await log_channel.send(embed=embed)
