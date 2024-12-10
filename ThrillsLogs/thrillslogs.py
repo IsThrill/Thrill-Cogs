@@ -14,20 +14,18 @@ class ThrillsLogs(commands.Cog):
             voice_logging_channel=None
         )
 
-    async def modlogChannel(self, guild):
+    async def get_log_channel(self, guild):
         """Fetch the designated modlog channel."""
         log_channel_id = await self.config.guild(guild).voice_logging_channel()
         if log_channel_id:
-            log_channel = guild.get_channel(log_channel_id)
-            if log_channel:
-                return log_channel
+            return guild.get_channel(log_channel_id)
         return None
 
-    async def onVoiceStateUpdate(self, member, before, after):
+    async def on_voice_state_update(self, member, before, after):
         guild = member.guild
         time = datetime.datetime.utcnow()
 
-        log_channel = await self.modlogChannel(guild)
+        log_channel = await self.get_log_channel(guild)
         if not log_channel:
             return
 
@@ -73,19 +71,20 @@ class ThrillsLogs(commands.Cog):
                         embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
                         if entry.reason:
                             embed.add_field(name="Reason", value=entry.reason, inline=False)
+
         except discord.Forbidden:
             pass
 
         await log_channel.send(embed=embed)
 
     # Main command group for ThrillsLogs
-    @commands.group(name="ThrillsLogs", invoke_without_command=True)
-    async def thrillsLogs(self, ctx):
+    @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
+    async def thrillslogs(self, ctx):
         """List available subcommands for ThrillsLogs."""
         commands_list = {
-            "ThrillsLogs set": "Set the channel where voice logging will be enabled.",
-            "ThrillsLogs check": "Check the currently configured voice logging channel.",
-            "ThrillsLogs clear": "Reset the voice logging channel configuration."
+            "thrillslogs set": "Set the channel where voice logging will be enabled.",
+            "thrillslogs check": "Check the currently configured voice logging channel.",
+            "thrillslogs clear": "Reset the voice logging channel configuration."
         }
 
         embed = discord.Embed(
@@ -99,15 +98,14 @@ class ThrillsLogs(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @thrillsLogs.command(name="set")
-    async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
+    @thrillslogs.command(name="set")
+    async def set_voice_channel(self, ctx, channel: discord.TextChannel):
         """Set the channel where voice activity will be logged."""
         await self.config.guild(ctx.guild).voice_logging_channel.set(channel.id)
         await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
 
-    @thrillsLogs.command(name="check")
-    async def checkVoiceChannel(self, ctx):
-        guild_id = ctx.guild.id
+    @thrillslogs.command(name="check")
+    async def check_voice_channel(self, ctx):
         log_channel_id = await self.config.guild(ctx.guild).voice_logging_channel()
 
         if log_channel_id:
@@ -118,8 +116,8 @@ class ThrillsLogs(commands.Cog):
 
         await ctx.send("❌ No voice logging channel has been set.")
 
-    @thrillsLogs.command(name="clear")
-    async def clearVoiceChannel(self, ctx):
+    @thrillslogs.command(name="clear")
+    async def clear_voice_channel(self, ctx):
         """Reset the voice logging channel configuration."""
         await self.config.guild(ctx.guild).voice_logging_channel.clear()
         await ctx.send("✅ Voice logging channel has been reset.")
