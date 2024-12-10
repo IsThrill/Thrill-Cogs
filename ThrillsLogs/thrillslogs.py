@@ -72,10 +72,6 @@ class ThrillsLogs(commands.Cog):
 
         await log_channel.send(embed=embed)
 
-    # Main command group for ThrillsLogs
-    async def ThrillsLogs(self, ctx):
-        pass
-
     @commands.group(name="ThrillsLogs", invoke_without_command=True)
     async def thrillsLogs(self, ctx):
         """List available subcommands for ThrillsLogs."""
