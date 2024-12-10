@@ -26,8 +26,8 @@ class ThrillsLogs(commands.Cog):
         return None
 
     async def on_voice_state_update(self, member, before, after):
-        # Ignore self mute and self deafen changes
-        if before.mute == after.mute and before.deaf == after.deaf:
+        # Ignore self-mute and self-deafen changes
+        if member.guild.me in before.channel.members and member.guild.me in after.channel.members:
             return
 
         guild = member.guild
@@ -102,11 +102,29 @@ class ThrillsLogs(commands.Cog):
 
             change_type = "switch"
 
+        # Log staff voice mutes and deafens
+        if member.guild.me in before.channel.members or member.guild.me in after.channel.members:
+            if before.mute != after.mute:
+                embed.title = "Staff Voice Mute Change"
+                embed.color = discord.Color.orange()
+                embed.add_field(name="User", value=f"{member.mention}", inline=False)
+                embed.add_field(name="Mute Status", value="Muted" if after.mute else "Unmuted", inline=False)
+                change_type = "mute"
+
+            if before.deaf != after.deaf:
+                embed.title = "Staff Voice Deafen Change"
+                embed.color = discord.Color.purple()
+                embed.add_field(name="User", value=f"{member.mention}", inline=False)
+                embed.add_field(name="Deafen Status", value="Deafened" if after.deaf else "Undeafened", inline=False)
+                change_type = "deafen"
+
         if change_type:
             try:
                 await log_channel.send(embed=embed)
             except discord.Forbidden:
-                print(f"Permission denied to send messages to {log_channel}")
+                print(f"[ERROR] Permission denied to send messages to {log_channel}")
+            except discord.HTTPException as e:
+                print(f"[ERROR] Failed to send embed: {e}")
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
     async def thrillslogs(self, ctx):
