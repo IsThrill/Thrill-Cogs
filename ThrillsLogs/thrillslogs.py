@@ -58,7 +58,6 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
 
-            # List members in the joined channel
             members_list = "\n".join([m.mention for m in after.channel.members]) or "None"
             embed.add_field(name="Members in Channel", value=members_list, inline=False)
             change_type = "join"
@@ -70,7 +69,6 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
 
-            # List remaining members in the left channel
             members_list = "\n".join([m.mention for m in before.channel.members]) or "None"
             embed.add_field(name="Members in Channel", value=members_list, inline=False)
             change_type = "leave"
@@ -83,30 +81,36 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
 
-            # List members in both channels
             before_members = "\n".join([m.mention for m in before.channel.members]) or "None"
             after_members = "\n".join([m.mention for m in after.channel.members]) or "None"
             embed.add_field(name="Members in Previous Channel", value=before_members, inline=False)
             embed.add_field(name="Members in New Channel", value=after_members, inline=False)
             change_type = "switch"
 
-        # Log mute/deafen actions by others using audit log
+        # Log mute/deafen actions by others
         if before.mute != after.mute or before.deaf != after.deaf:
-            action_type = None
-            if before.mute != after.mute:
-                action_type = "Muted" if after.mute else "Unmuted"
-            elif before.deaf != after.deaf:
-                action_type = "Deafened" if after.deaf else "Undeafened"
+            action_type = "Muted" if after.mute else "Unmuted" if before.mute != after.mute else \
+                          "Deafened" if after.deaf else "Undeafened"
+            performer = None
 
-            # Fetch audit logs to determine who performed the action
-            async for entry in guild.audit_logs(action=discord.AuditLogAction.member_update, limit=1):
-                if entry.target.id == member.id and entry.created_at > datetime.datetime.utcnow() - datetime.timedelta(seconds=5):
-                    embed.title = f"User {action_type} by Another Member"
-                    embed.color = discord.Color.orange()
-                    embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
-                    embed.add_field(name="Performed By", value=f"{entry.user.mention}", inline=False)
-                    change_type = "audit_mute_deafen"
+            # Fetch the audit log for the relevant member update
+            async for entry in guild.audit_logs(
+                action=discord.AuditLogAction.member_update,
+                after=datetime.datetime.utcnow() - datetime.timedelta(seconds=10)
+            ):
+                if entry.target.id == member.id and (
+                    (before.mute != after.mute and entry.before.mute != entry.after.mute) or
+                    (before.deaf != after.deaf and entry.before.deaf != entry.after.deaf)
+                ):
+                    performer = entry.user
                     break
+
+            if performer:
+                embed.title = f"User {action_type} by Another Member"
+                embed.color = discord.Color.orange()
+                embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
+                embed.add_field(name="Performed By", value=f"{performer.mention}", inline=False)
+                change_type = "audit_mute_deafen"
 
         if change_type:
             try:
@@ -131,7 +135,7 @@ class ThrillsLogs(commands.Cog):
         )
 
         for command, description in commands_list.items():
-            embed.add_field(name=f"`{command}`", value=description, inline=False)
+            embed.add_field(name=f"{command}", value=description, inline=False)
 
         await ctx.send(embed=embed)
 
