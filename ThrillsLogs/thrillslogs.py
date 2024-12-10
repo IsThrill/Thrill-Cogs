@@ -26,11 +26,6 @@ class ThrillsLogs(commands.Cog):
         return None
 
     async def on_voice_state_update(self, member, before, after):
-        # Ignore self mute/deafen changes
-        if before.mute == after.mute and before.deaf == after.deaf:
-            if before.channel == after.channel:
-                return  # No relevant voice state changes
-
         guild = member.guild
         log_channel = await self.get_log_channel(guild)
 
@@ -54,40 +49,70 @@ class ThrillsLogs(commands.Cog):
         if avatar_url:
             embed.set_thumbnail(url=avatar_url)
 
-        # Handle join, leave, and switch events
+        change_type = None
+
+        # When a user joins a voice channel
         if before.channel is None and after.channel:
-            # User joined a channel
             embed.title = "Member Joined Voice Channel"
             embed.color = discord.Color.green()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
 
+            # List members in the joined channel
+            members_list = "\n".join([m.mention for m in after.channel.members]) or "None"
+            embed.add_field(name="Members in Channel", value=members_list, inline=False)
+            change_type = "join"
+
+        # When a user leaves a voice channel
         elif after.channel is None and before.channel:
-            # User left a channel
             embed.title = "Member Left Voice Channel"
             embed.color = discord.Color.red()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
 
+            # List remaining members in the left channel
+            members_list = "\n".join([m.mention for m in before.channel.members]) or "None"
+            embed.add_field(name="Members in Channel", value=members_list, inline=False)
+            change_type = "leave"
+
+        # When a user switches channels
         elif before.channel != after.channel:
-            # User switched channels
             embed.title = "Member Switched Channels"
             embed.color = discord.Color.blue()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
 
-        else:
-            # If none of the above, return early
-            return
+            # List members in both channels
+            before_members = "\n".join([m.mention for m in before.channel.members]) or "None"
+            after_members = "\n".join([m.mention for m in after.channel.members]) or "None"
+            embed.add_field(name="Members in Previous Channel", value=before_members, inline=False)
+            embed.add_field(name="Members in New Channel", value=after_members, inline=False)
+            change_type = "switch"
 
-        # Send the embed to the log channel
-        try:
-            await log_channel.send(embed=embed)
-        except discord.Forbidden:
-            print(f"[ERROR] Permission denied to send messages to {log_channel}")
-        except discord.HTTPException as e:
-            print(f"[ERROR] Failed to send embed: {e}")
+        # Log when someone mutes/deafens another user
+        if before.mute != after.mute or before.deaf != after.deaf:
+            action_user = None
+            if member.guild.me.voice.channel and member.guild.me in after.channel.members:
+                for m in before.channel.members:
+                    if m.guild_permissions.deafen_members or m.guild_permissions.mute_members:
+                        action_user = m
+
+            if action_user:
+                action_type = "Muted" if after.mute else "Unmuted"
+                embed.title = f"User {action_type} by Another Member"
+                embed.color = discord.Color.orange()
+                embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
+                embed.add_field(name="Performed By", value=f"{action_user.mention}", inline=False)
+                change_type = "mute/deafen"
+
+        if change_type:
+            try:
+                await log_channel.send(embed=embed)
+            except discord.Forbidden:
+                print(f"[ERROR] Permission denied to send messages to {log_channel}")
+            except discord.HTTPException as e:
+                print(f"[ERROR] Failed to send embed: {e}")
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
     async def thrillslogs(self, ctx):
