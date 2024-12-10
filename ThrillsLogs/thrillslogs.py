@@ -32,7 +32,9 @@ class ThrillsLogs(commands.Cog):
         # Get the current timestamp in EST timezone
         est = pytz.timezone('America/New_York')
         current_time = datetime.datetime.now(est)
-        current_timestamp = int(current_time.timestamp())
+
+        # Format the timestamp as a string
+        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
 
         # Create the embed with the current timestamp
         embed = discord.Embed(
@@ -53,6 +55,7 @@ class ThrillsLogs(commands.Cog):
             embed.color = discord.Color.green()  # ✅ Green
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
+            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
@@ -66,6 +69,7 @@ class ThrillsLogs(commands.Cog):
             embed.color = discord.Color.red()  # 🔴 Red
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
+            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
@@ -80,6 +84,7 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
+            embed.add_field(name="Timestamp (EST)", value=f"{formatted_time}", inline=False)
 
             members_list_before = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             members_list_after = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
@@ -89,20 +94,6 @@ class ThrillsLogs(commands.Cog):
 
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
-
-        # Add the timestamp to the footer using Discord's built-in syntax
-        embed.set_footer(text=f"<t:{current_timestamp}:F>")
-
-        try:
-            if guild.me.guild_permissions.view_audit_log:
-                async for entry in guild.audit_logs(limit=1):
-                    if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
-                        embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
-                        if entry.reason:
-                            embed.add_field(name="Reason", value=entry.reason, inline=False)
-
-        except discord.Forbidden:
-            print(f"Permission denied to view audit logs in {guild.name}")
 
         try:
             await log_channel.send(embed=embed)
