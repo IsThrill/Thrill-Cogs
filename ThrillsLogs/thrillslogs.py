@@ -1,8 +1,12 @@
 import datetime
 import discord
+import logging
 from redbot.core import Config, commands, i18n
 
 _ = i18n.Translator("ThrillsLogs", __file__)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 class ThrillsLogs(commands.Cog):
     def __init__(self, bot):
@@ -11,38 +15,48 @@ class ThrillsLogs(commands.Cog):
 
         # Register default configuration
         self.config.register_guild(
-            voice_logging_channel=None
+            voiceLoggingChannel=None
         )
 
-    async def get_log_channel(self, guild):
+    async def getLogChannel(self, guild):
         """Fetch the designated log channel."""
-        log_channel_id = await self.config.guild(guild).voice_logging_channel()
+        log_channel_id = await self.config.guild(guild).voiceLoggingChannel()
         if log_channel_id:
             return guild.get_channel(log_channel_id)
         return None
 
-    async def on_voice_state_update(self, member, before, after):
+    def createEmbedLogActivity(self, title, member, channel=None):
+        """Helper method to create embed logs."""
+        embed = discord.Embed(
+            title=title,
+            timestamp=datetime.datetime.utcnow(),
+            color=discord.Color.blue()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        if channel:
+            embed.add_field(name="Channel", value=f"{channel.mention}", inline=False)
+        return embed
+
+    async def getAuditLogEntry(self, guild, member):
+        """Fetch audit log information about member updates."""
+        async for entry in guild.audit_logs(limit=10):
+            if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
+                return entry.user.mention, entry.reason
+        return "Unknown", None
+
+    async def onVoiceStateUpdate(self, member, before, after):
         guild = member.guild
-        log_channel = await self.get_log_channel(guild)
+        log_channel = await self.getLogChannel(guild)
 
         if not log_channel:
             return  # No logging channel configured
 
-        time = datetime.datetime.utcnow()
-
-        embed = discord.Embed(
-            timestamp=time,
-            color=discord.Color.blue()
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
+        embed = None
 
         # When a user joins a voice channel
         if before.channel is None and after.channel:
-            embed.title = f"Member Joined Channel"
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
+            embed = self.createEmbedLogActivity("User Joined Channel", member, after.channel)
 
-            # List members currently present in the channel in order of join time
             members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
 
@@ -51,9 +65,7 @@ class ThrillsLogs(commands.Cog):
 
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
-            embed.title = f"Member Left Channel"
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
+            embed = self.createEmbedLogActivity("User Left Channel", member, before.channel)
 
             members_list = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
@@ -63,8 +75,7 @@ class ThrillsLogs(commands.Cog):
 
         # When a user switches channels
         elif before.channel != after.channel:
-            embed.title = f"Member Switched Channels"
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
+            embed = self.createEmbedLogActivity("User Switched Channels", member, after.channel)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
 
@@ -76,25 +87,24 @@ class ThrillsLogs(commands.Cog):
 
         try:
             if guild.me.guild_permissions.view_audit_log:
-                async for entry in guild.audit_logs(limit=1):
-                    if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
-                        embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
-                        if entry.reason:
-                            embed.add_field(name="Reason", value=entry.reason, inline=False)
+                audit_user, reason = await self.getAuditLogEntry(guild, member)
+                embed.add_field(name="Updated By", value=audit_user, inline=True)
+                if reason:
+                    embed.add_field(name="Reason", value=reason, inline=False)
 
         except discord.Forbidden:
-            print(f"Permission denied to view audit logs in {guild.name}")
+            logging.error(f"Permission denied to view audit logs in {guild.name}")
 
         try:
             await log_channel.send(embed=embed)
         except discord.Forbidden:
-            print(f"Permission denied to send messages to {log_channel}")
+            logging.error(f"Permission denied to send messages to {log_channel}")
 
-    async def cog_load(self):
-        self.bot.add_listener(self.on_voice_state_update, "on_voice_state_update")
+    async def cogLoad(self):
+        self.bot.add_listener(self.onVoiceStateUpdate, "on_voice_state_update")
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
-    async def thrillslogs(self, ctx):
+    async def thrillsLogs(self, ctx):
         commands_list = {
             "thrillslogs set": "Set the channel where voice logging will be enabled.",
             "thrillslogs check": "Check the currently configured voice logging channel.",
@@ -112,14 +122,14 @@ class ThrillsLogs(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @thrillslogs.command(name="set")
-    async def set_voice_channel(self, ctx, channel: discord.TextChannel):
-        await self.config.guild(ctx.guild).voice_logging_channel.set(channel.id)
+    @thrillsLogs.command(name="set")
+    async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
+        await self.config.guild(ctx.guild).voiceLoggingChannel.set(channel.id)
         await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
 
-    @thrillslogs.command(name="check")
-    async def check_voice_channel(self, ctx):
-        log_channel_id = await self.config.guild(ctx.guild).voice_logging_channel()
+    @thrillsLogs.command(name="check")
+    async def checkVoiceChannel(self, ctx):
+        log_channel_id = await self.config.guild(ctx.guild).voiceLoggingChannel()
 
         if log_channel_id:
             log_channel = ctx.guild.get_channel(log_channel_id)
@@ -129,8 +139,7 @@ class ThrillsLogs(commands.Cog):
 
         await ctx.send("❌ No voice logging channel has been set.")
 
-    @thrillslogs.command(name="clear")
-    async def clear_voice_channel(self, ctx):
-        await self.config.guild(ctx.guild).voice_logging_channel.clear()
+    @thrillsLogs.command(name="clear")
+    async def clearVoiceChannel(self, ctx):
+        await self.config.guild(ctx.guild).voiceLoggingChannel.clear()
         await ctx.send("✅ Voice logging channel has been reset.")
-
