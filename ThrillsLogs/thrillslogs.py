@@ -30,12 +30,16 @@ class ThrillsLogs(commands.Cog):
 
         time = datetime.datetime.utcnow()
 
-        # Determine embed color based on the voice event
-        embed_color = discord.Color.default()
-
+        # Create the embed with timestamp and default color
         embed = discord.Embed(
-            timestamp=time
+            timestamp=time,
+            color=discord.Color.default()
         )
+
+        # Safely add user's avatar thumbnail
+        avatar_url = member.display_avatar.url if member.display_avatar else None
+        if avatar_url:
+            embed.set_thumbnail(url=avatar_url)
 
         # When a user joins a voice channel
         if before.channel is None and after.channel:
