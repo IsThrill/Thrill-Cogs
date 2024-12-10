@@ -28,13 +28,18 @@ class ThrillsLogs(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         # Ignore self mute/deafen changes
         if before.mute == after.mute and before.deaf == after.deaf:
-            return
+            if before.channel == after.channel:
+                return  # No relevant voice state changes
 
         guild = member.guild
         log_channel = await self.get_log_channel(guild)
 
         if not log_channel:
             return  # No logging channel configured
+
+        if not log_channel.permissions_for(guild.me).send_messages:
+            print(f"[ERROR] Bot lacks permissions to send messages to {log_channel}")
+            return
 
         # Get the current timestamp in EST timezone
         est = pytz.timezone('America/New_York')
@@ -49,55 +54,40 @@ class ThrillsLogs(commands.Cog):
         if avatar_url:
             embed.set_thumbnail(url=avatar_url)
 
-        change_type = None
-
-        # When a user joins a voice channel
+        # Handle join, leave, and switch events
         if before.channel is None and after.channel:
+            # User joined a channel
             embed.title = "Member Joined Voice Channel"
             embed.color = discord.Color.green()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
-            change_type = "join"
 
-        # When a user leaves a voice channel
         elif after.channel is None and before.channel:
+            # User left a channel
             embed.title = "Member Left Voice Channel"
             embed.color = discord.Color.red()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
-            change_type = "leave"
 
-        # When a user switches channels
         elif before.channel != after.channel:
+            # User switched channels
             embed.title = "Member Switched Channels"
             embed.color = discord.Color.blue()
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
-            change_type = "switch"
 
-        # Log mute/deafen events
-        if before.mute != after.mute:
-            embed.title = "Member Mute Status Changed"
-            embed.color = discord.Color.orange()
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Mute Status", value="Muted" if after.mute else "Unmuted", inline=False)
-            change_type = "mute"
+        else:
+            # If none of the above, return early
+            return
 
-        if before.deaf != after.deaf:
-            embed.title = "Member Deafen Status Changed"
-            embed.color = discord.Color.purple()
-            embed.add_field(name="User", value=f"{member.mention}", inline=False)
-            embed.add_field(name="Deafen Status", value="Deafened" if after.deaf else "Undeafened", inline=False)
-            change_type = "deafen"
-
-        if change_type:
-            try:
-                await log_channel.send(embed=embed)
-            except discord.Forbidden:
-                print(f"[ERROR] Permission denied to send messages to {log_channel}")
-            except discord.HTTPException as e:
-                print(f"[ERROR] Failed to send embed: {e}")
+        # Send the embed to the log channel
+        try:
+            await log_channel.send(embed=embed)
+        except discord.Forbidden:
+            print(f"[ERROR] Permission denied to send messages to {log_channel}")
+        except discord.HTTPException as e:
+            print(f"[ERROR] Failed to send embed: {e}")
 
     @commands.group(name="thrillslogs", aliases=["ThrillsLogs"], invoke_without_command=True)
     async def thrillslogs(self, ctx):
