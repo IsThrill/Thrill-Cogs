@@ -34,11 +34,13 @@ class ThrillsLogs(commands.Cog):
         current_time = datetime.datetime.now(est)
         current_timestamp = int(current_time.timestamp())
 
-        # Create the embed with a formatted timestamp using Discord's built-in syntax
+        # Create the embed with the current timestamp
         embed = discord.Embed(
-            timestamp=current_timestamp,
             color=discord.Color.default()
         )
+
+        # Set the embed timestamp to the EST current time
+        embed.timestamp = current_time
 
         # Safely add user's avatar thumbnail
         avatar_url = member.display_avatar.url if member.display_avatar else None
@@ -88,8 +90,8 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
 
-        # Embed timestamp using Discord built-in syntax (EST time)
-        embed.set_footer(text=f"<t:{current_timestamp}:F>")  # Full format timestamp in EST
+        # Add the timestamp to the footer using Discord's built-in syntax
+        embed.set_footer(text=f"<t:{current_timestamp}:F>")
 
         try:
             if guild.me.guild_permissions.view_audit_log:
