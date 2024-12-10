@@ -42,7 +42,6 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
 
-            # List members currently present in the channel in order of join time
             members_list = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             member_mentions = [m.mention for m in members_list]
 
@@ -71,8 +70,11 @@ class ThrillsLogs(commands.Cog):
             members_list_before = sorted(before.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
             members_list_after = sorted(after.channel.members, key=lambda m: m.joined_at or datetime.datetime.min)
 
-            embed.add_field(name="Members In From Channel", value="\n".join([m.mention for m in members_list_before]), inline=False)
-            embed.add_field(name="Members In To Channel", value="\n".join([m.mention for m in members_list_after]), inline=False)
+            members_in_from_channel = "\n".join([m.mention for m in members_list_before]) if members_list_before else "None"
+            members_in_to_channel = "\n".join([m.mention for m in members_list_after]) if members_list_after else "None"
+
+            embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
+            embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
 
         try:
             if guild.me.guild_permissions.view_audit_log:
@@ -108,7 +110,7 @@ class ThrillsLogs(commands.Cog):
         )
 
         for command, description in commands_list.items():
-            embed.add_field(name=f"{command}", value=description, inline=False)
+            embed.add_field(name=f"`{command}`", value=description, inline=False)
 
         await ctx.send(embed=embed)
 
