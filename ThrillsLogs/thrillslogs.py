@@ -35,65 +35,53 @@ class ThrillsLogs(commands.Cog):
 
         description = ""
 
-        # User joins a voice channel
         if before.channel is None and after.channel:
             description = f"✅ **{member.mention} joined** {after.channel.mention}"
             embed.add_field(name="Channel Joined", value=after.channel.name, inline=True)
-            embed.add_field(
-                name="Max Members",
-                value=after.channel.user_limit or "Unlimited",
-                inline=True
-            )
+            embed.add_field(name="Max Members", value=after.channel.user_limit or "Unlimited", inline=True)
 
-        # User leaves a voice channel
         elif after.channel is None and before.channel:
             description = f"🔴 **{member.mention} left** {before.channel.mention}"
             embed.add_field(name="Channel Left", value=before.channel.name, inline=True)
-            embed.add_field(
-                name="Max Members",
-                value=before.channel.user_limit or "Unlimited",
-                inline=True
-            )
+            embed.add_field(name="Max Members", value=before.channel.user_limit or "Unlimited", inline=True)
 
-        # User switches voice channels
         elif before.channel != after.channel:
             description = (
                 f"🔄 **{member.mention} switched channels**\n"
                 f"From **{before.channel.mention}** to **{after.channel.mention}**"
             )
             embed.add_field(name="From Channel", value=before.channel.name, inline=True)
-            embed.add_field(
-                name="Max Members (From)",
-                value=before.channel.user_limit or "Unlimited",
-                inline=True
-            )
+            embed.add_field(name="Max Members (From)", value=before.channel.user_limit or "Unlimited", inline=True)
             embed.add_field(name="To Channel", value=after.channel.name, inline=True)
-            embed.add_field(
-                name="Max Members (To)",
-                value=after.channel.user_limit or "Unlimited",
-                inline=True
-            )
+            embed.add_field(name="Max Members (To)", value=after.channel.user_limit or "Unlimited", inline=True)
 
         if not description:
             return
 
         embed.description = description
 
-        # Reference audit logs to include staff updates
         try:
             if guild.me.guild_permissions.view_audit_log:
                 async for entry in guild.audit_logs(limit=1):
-                    if entry.action in [
-                        discord.AuditLogAction.member_update
-                    ] and entry.target.id == member.id:
+                    if entry.action == discord.AuditLogAction.member_update and entry.target.id == member.id:
                         embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
                         if entry.reason:
                             embed.add_field(name="Reason", value=entry.reason, inline=False)
         except discord.Forbidden:
-            pass  # No audit log access
+            pass
 
         await log_channel.send(embed=embed)
 
+    # Main command group for ThrillsLogs
+    async def ThrillsLogs(self, ctx):
+        pass
+
+    @commands.group(name="ThrillsLogs", invoke_without_command=True)
+    async def thrillsLogs(self, ctx):
+        """Main command group for ThrillsLogs."""
+        await ctx.send("Use subcommands under `ThrillsLogs` to configure voice logging.")
+
+    @thrillsLogs.command(name="set")
     async def setVoiceChannel(self, ctx, channel: discord.TextChannel):
         """Set the channel where voice activity will be logged."""
         guild_id = ctx.guild.id
@@ -103,6 +91,7 @@ class ThrillsLogs(commands.Cog):
         self.bot.settings[guild_id]["voice_logging_channel"] = channel.id
         await ctx.send(f"✅ Voice logging channel has been set to {channel.mention}")
 
+    @thrillsLogs.command(name="check")
     async def checkVoiceChannel(self, ctx):
         guild_id = ctx.guild.id
         if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
@@ -111,8 +100,10 @@ class ThrillsLogs(commands.Cog):
             if log_channel:
                 await ctx.send(f"✅ The voice logging channel is {log_channel.mention}")
                 return
+
         await ctx.send("❌ No voice logging channel has been set.")
 
+    @thrillsLogs.command(name="clear")
     async def clearVoiceChannel(self, ctx):
         guild_id = ctx.guild.id
         if guild_id in self.bot.settings and "voice_logging_channel" in self.bot.settings[guild_id]:
