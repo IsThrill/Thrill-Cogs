@@ -30,15 +30,17 @@ class ThrillsLogs(commands.Cog):
 
         time = datetime.datetime.utcnow()
 
+        # Determine embed color based on the voice event
+        embed_color = discord.Color.default()
+
         embed = discord.Embed(
-            timestamp=time,
-            color=discord.Color.blue()
+            timestamp=time
         )
-        embed.set_thumbnail(url=member.display_avatar.url)
 
         # When a user joins a voice channel
         if before.channel is None and after.channel:
             embed.title = "Member Joined Channel"
+            embed.color = discord.Color.green()  # ✅ Green
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Joined", value=f"{after.channel.mention}", inline=False)
 
@@ -51,6 +53,7 @@ class ThrillsLogs(commands.Cog):
         # When a user leaves a voice channel
         elif after.channel is None and before.channel:
             embed.title = "Member Left Channel"
+            embed.color = discord.Color.red()  # 🔴 Red
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="Channel Left", value=f"{before.channel.mention}", inline=False)
 
@@ -63,6 +66,7 @@ class ThrillsLogs(commands.Cog):
         # When a user switches channels
         elif before.channel != after.channel:
             embed.title = "Member Switched Channels"
+            embed.color = discord.Color.blue()  # 🔵 Blue
             embed.add_field(name="User", value=f"{member.mention}", inline=False)
             embed.add_field(name="From Channel", value=f"{before.channel.mention}", inline=True)
             embed.add_field(name="To Channel", value=f"{after.channel.mention}", inline=True)
