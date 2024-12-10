@@ -90,21 +90,23 @@ class ThrillsLogs(commands.Cog):
             embed.add_field(name="Members in New Channel", value=after_members, inline=False)
             change_type = "switch"
 
-        # Log when someone mutes/deafens another user
+        # Log mute/deafen actions by others using audit log
         if before.mute != after.mute or before.deaf != after.deaf:
-            action_user = None
-            if member.guild.me.voice.channel and member.guild.me in after.channel.members:
-                for m in before.channel.members:
-                    if m.guild_permissions.deafen_members or m.guild_permissions.mute_members:
-                        action_user = m
-
-            if action_user:
+            action_type = None
+            if before.mute != after.mute:
                 action_type = "Muted" if after.mute else "Unmuted"
-                embed.title = f"User {action_type} by Another Member"
-                embed.color = discord.Color.orange()
-                embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
-                embed.add_field(name="Performed By", value=f"{action_user.mention}", inline=False)
-                change_type = "mute/deafen"
+            elif before.deaf != after.deaf:
+                action_type = "Deafened" if after.deaf else "Undeafened"
+
+            # Fetch audit logs to determine who performed the action
+            async for entry in guild.audit_logs(action=discord.AuditLogAction.member_update, limit=1):
+                if entry.target.id == member.id and entry.created_at > datetime.datetime.utcnow() - datetime.timedelta(seconds=5):
+                    embed.title = f"User {action_type} by Another Member"
+                    embed.color = discord.Color.orange()
+                    embed.add_field(name="Target User", value=f"{member.mention}", inline=False)
+                    embed.add_field(name="Performed By", value=f"{entry.user.mention}", inline=False)
+                    change_type = "audit_mute_deafen"
+                    break
 
         if change_type:
             try:
