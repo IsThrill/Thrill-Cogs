@@ -28,11 +28,12 @@ class ThrillsLogs(commands.Cog):
         if not log_channel:
             return  # No logging channel configured
 
-        time = datetime.datetime.utcnow()
+        # Get the current timestamp as UNIX time (seconds since epoch)
+        time = datetime.datetime.utcnow().timestamp()
 
-        # Create the embed with timestamp and default color
+        # Create the embed with a formatted timestamp
         embed = discord.Embed(
-            timestamp=time,
+            timestamp=discord.Object(id=int(time)),
             color=discord.Color.default()
         )
 
