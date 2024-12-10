@@ -32,10 +32,11 @@ class ThrillsLogs(commands.Cog):
         # Get the current timestamp in EST timezone
         est = pytz.timezone('America/New_York')
         current_time = datetime.datetime.now(est)
+        current_timestamp = int(current_time.timestamp())
 
-        # Create the embed with a formatted timestamp
+        # Create the embed with a formatted timestamp using Discord's built-in syntax
         embed = discord.Embed(
-            timestamp=current_time,
+            timestamp=current_timestamp,
             color=discord.Color.default()
         )
 
@@ -86,6 +87,9 @@ class ThrillsLogs(commands.Cog):
 
             embed.add_field(name="Members In From Channel", value=members_in_from_channel, inline=False)
             embed.add_field(name="Members In To Channel", value=members_in_to_channel, inline=False)
+
+        # Embed timestamp using Discord built-in syntax (EST time)
+        embed.set_footer(text=f"<t:{current_timestamp}:F>")  # Full format timestamp in EST
 
         try:
             if guild.me.guild_permissions.view_audit_log:
