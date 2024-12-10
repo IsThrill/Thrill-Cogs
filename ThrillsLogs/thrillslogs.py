@@ -31,30 +31,45 @@ class ThrillsLogs(commands.Cog):
         time = datetime.datetime.utcnow()
 
         embed = discord.Embed(
-            title="Voice State Update",
+            title="Joined/Left/Switched Channel",
             timestamp=time,
             color=discord.Color.blue()
         )
-        embed.set_author(name=str(member), icon_url=member.display_avatar.url)
+        embed.set_thumbnail(url=member.display_avatar.url)  # Set user's avatar as thumbnail
 
         description = ""
 
+        # When a user joins a voice channel
         if before.channel is None and after.channel:
-            description = f"✅ **{member.mention} joined** {after.channel.mention}"
+            description = f"**{member.mention} joined** {after.channel.mention}"
             embed.add_field(name="Channel Joined", value=after.channel.name, inline=True)
-            embed.add_field(name="Max Members", value=after.channel.user_limit or "Unlimited", inline=True)
 
+            # List members currently present in the channel
+            members_list = [m.mention for m in after.channel.members]
+            if members_list:
+                embed.add_field(name="Current Members", value=", ".join(members_list), inline=False)
+
+        # When a user leaves a voice channel
         elif after.channel is None and before.channel:
-            description = f"🔴 **{member.mention} left** {before.channel.mention}"
+            description = f"**{member.mention} left** {before.channel.mention}"
             embed.add_field(name="Channel Left", value=before.channel.name, inline=True)
-            embed.add_field(name="Max Members", value=before.channel.user_limit or "Unlimited", inline=True)
 
+            members_list = [m.mention for m in before.channel.members]
+            if members_list:
+                embed.add_field(name="Current Members", value=", ".join(members_list), inline=False)
+
+        # When a user switches channels
         elif before.channel != after.channel:
             description = f"🔄 **{member.mention} switched channels**\nFrom **{before.channel.mention}** to **{after.channel.mention}**"
             embed.add_field(name="From Channel", value=before.channel.name, inline=True)
-            embed.add_field(name="Max Members (From)", value=before.channel.user_limit or "Unlimited", inline=True)
-            embed.add_field(name="To Channel", value=after.channel.name, inline=True)
-            embed.add_field(name="Max Members (To)", value=after.channel.user_limit or "Unlimited", inline=True)
+
+            members_list_before = [m.mention for m in before.channel.members]
+            if members_list_before:
+                embed.add_field(name="Members in From Channel", value=", ".join(members_list_before), inline=False)
+
+            members_list_after = [m.mention for m in after.channel.members]
+            if members_list_after:
+                embed.add_field(name="Members in To Channel", value=", ".join(members_list_after), inline=False)
 
         if not description:
             return
@@ -69,6 +84,7 @@ class ThrillsLogs(commands.Cog):
                         embed.add_field(name="Updated By", value=entry.user.mention, inline=True)
                         if entry.reason:
                             embed.add_field(name="Reason", value=entry.reason, inline=False)
+
         except discord.Forbidden:
             print(f"Permission denied to view audit logs in {guild.name}")
 
