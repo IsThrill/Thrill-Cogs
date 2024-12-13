@@ -1,5 +1,5 @@
 import discord
-from redbot.core import Config, app_commands, commands
+from redbot.core import commands, app_commands
 import random
 
 class Smelly(commands.Cog):
@@ -8,37 +8,28 @@ class Smelly(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Hybrid command to support both prefix and slash
-    @commands.hybrid_command()
-    @app_commands.describe(reason="Just a fun way to find out your smelliness!")
-    async def smelly(self, ctx: commands.Context, *, reason: str = None):
-        """
-        Determine how smelly you are with a fun response.
-        """
+    # Slash command using app_commands
+    @app_commands.command(name="smelly", description="Determine your smelliness")
+    async def smelly_slash(self, interaction: discord.Interaction):
         smelliness = random.randint(0, 100)
+
+        embed = discord.Embed(
+            title="Smelliness Detector",
+            description=f"{interaction.user.mention}, your smelliness level is **{smelliness}%**! 🥸",
+            color=discord.Color.random()
+        )
+
+        await interaction.response.send_message(embed=embed)
+
+    # Hybrid command (both prefix and slash support)
+    @commands.hybrid_command()
+    async def smelly(self, ctx: commands.Context):
+        smelliness = random.randint(0, 100)
+
         embed = discord.Embed(
             title="Smelliness Detector",
             description=f"{ctx.author.mention}, your smelliness level is **{smelliness}%**! 🌸",
             color=discord.Color.random()
         )
-        
-        if reason:
-            embed.add_field(name="Reason:", value=f"{reason}")
 
         await ctx.send(embed=embed)
-
-    # Slash command-only version if someone uses native slash commands
-    @commands.slash_command(name="smelly", description="Determine your smelliness")
-    async def smelly_slash(self, ctx: discord.ApplicationContext):
-        """
-        A slash command version of the smelly detection.
-        """
-        smelliness = random.randint(0, 100)
-
-        embed = discord.Embed(
-            title="Smelliness Detector",
-            description=f"{ctx.author.mention}, your smelliness level is **{smelliness}%**! 🥸",
-            color=discord.Color.green()
-        )
-        
-        await ctx.respond(embed=embed)
