@@ -8,22 +8,10 @@ class Smelly(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Slash command using app_commands
-    @app_commands.command(name="smelly", description="Determine your smelliness")
-    async def smelly_slash(self, interaction: discord.Interaction):
-        smelliness = random.randint(0, 100)
-
-        embed = discord.Embed(
-            title="Smelliness Detector",
-            description=f"{interaction.user.mention}, your smelliness level is **{smelliness}%**! 🥸",
-            color=discord.Color.random()
-        )
-
-        await interaction.response.send_message(embed=embed)
-
     # Hybrid command (both prefix and slash support)
-    @commands.hybrid_command()
-    async def smelly(self, ctx: commands.Context):
+    @commands.hybrid_command(name="smelly", description="Determine how smelly you are!")
+    @app_commands.describe(reason="Provide a reason (optional).")
+    async def smelly(self, ctx: commands.Context, *, reason: str = None):
         smelliness = random.randint(0, 100)
 
         embed = discord.Embed(
@@ -31,5 +19,8 @@ class Smelly(commands.Cog):
             description=f"{ctx.author.mention}, your smelliness level is **{smelliness}%**! 🌸",
             color=discord.Color.random()
         )
+
+        if reason:
+            embed.add_field(name="Reason:", value=f"{reason}")
 
         await ctx.send(embed=embed)
