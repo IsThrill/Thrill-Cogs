@@ -10,12 +10,15 @@ class Smelly(commands.Cog):
 
     # Hybrid command (both prefix and slash support)
     @commands.hybrid_command(name="smelly", description="Determine how smelly you are!")
-    async def smelly(self, ctx: commands.Context):
+    @app_commands.describe(target="The user you want to check smelliness for")
+    async def smelly(self, ctx: commands.Context, target: discord.Member = None):
+        target = target or ctx.author  # If no target is provided, default to the command invoker
+
         smelliness = random.randint(0, 100)
 
         embed = discord.Embed(
             title="Smelliness Detector",
-            description=f"{ctx.author.mention}, your smelliness level is **{smelliness}%**! 🌸",
+            description=f"{target.mention}, your smelliness level is **{smelliness}%**! 🌸",
             color=discord.Color.random()
         )
 
