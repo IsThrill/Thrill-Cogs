@@ -1,5 +1,5 @@
 import discord
-from redbot.core import commands, app_commands
+from redbot.core import Config, app_commands, commands
 import random
 
 class Smelly(commands.Cog):
