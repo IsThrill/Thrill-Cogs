@@ -1,10 +1,12 @@
 import discord
 from redbot.core import commands, Config
 import logging
+import aiohttp
+import io
 
 log = logging.getLogger("red.isthrill.imagelogs")
 
-class ImageLogs(commands.Cog):  # Use redbot.core.commands.Cog
+class ImageLogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
@@ -42,22 +44,27 @@ class ImageLogs(commands.Cog):  # Use redbot.core.commands.Cog
         if not images:
             return  # No images to log
 
-        embeds = []
-        for index, image in enumerate(images):
-            embed = discord.Embed(
-                title=f"Deleted Image {index + 1} of {len(images)}",
-                description=f"Message deleted in {message.channel.mention}",
-                color=discord.Color.red(),
-                timestamp=message.created_at
-            )
-            embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
-            embed.set_footer(text=f"Message ID: {message.id}")
-            embed.set_image(url=image.url)
-            embeds.append(embed)
-
-        # Send embeds in batches of 10
-        for i in range(0, len(embeds), 10):
-            await log_channel.send(embeds=embeds[i:i + 10])
+        async with aiohttp.ClientSession() as session:
+            for index, image in enumerate(images):
+                try:
+                    async with session.get(image.url) as response:
+                        if response.status == 200:
+                            image_data = await response.read()
+                            image_file = discord.File(io.BytesIO(image_data), filename=image.filename)
+                            embed = discord.Embed(
+                                title=f"Deleted Image {index + 1} of {len(images)}",
+                                description=f"Message deleted in {message.channel.mention}",
+                                color=discord.Color.red(),
+                                timestamp=message.created_at
+                            )
+                            embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+                            embed.set_footer(text=f"Message ID: {message.id}")
+                            embed.set_image(url=f"attachment://{image.filename}")
+                            await log_channel.send(embed=embed, file=image_file)
+                        else:
+                            log.warning(f"Failed to download image {image.url} with status {response.status}")
+                except Exception as e:
+                    log.error(f"Error downloading image {image.url}: {e}")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
