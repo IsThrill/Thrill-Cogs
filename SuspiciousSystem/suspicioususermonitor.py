@@ -15,6 +15,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "staff_role": None,
             "questionnaire_channel": None,
             "suspicious_users": {},
+            "test_mode": False,  # Add a test_mode setting to the guild configuration
         }
         self.config.register_guild(**default_guild)
 
@@ -26,8 +27,13 @@ class SuspiciousUserMonitor(commands.Cog):
         if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
             return
 
-        account_age = datetime.now(timezone.utc) - member.created_at
-        if account_age.days < 90:  # Check if the account is younger than 3 months
+        # If test mode is enabled, treat all users as suspicious
+        if settings["test_mode"]:
+            account_age = timedelta(days=0)  # Fake account age to bypass the 3-month check
+        else:
+            account_age = datetime.now(timezone.utc) - member.created_at
+
+        if account_age.days < 90 or settings["test_mode"]:  # If account is younger than 3 months or in test mode
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
@@ -120,6 +126,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus setrole": "Set the suspicious role for marking suspicious users.",
             "sus setstaff": "Set the staff role to be pinged in alerts.",
             "sus setchannel": "Set the channel for posting suspicious user alerts.",
+            "sus test": "Enable/Disable test mode where all new users are treated as suspicious.",
         }
         description = "\n".join([f"`{cmd}`: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
@@ -149,3 +156,13 @@ class SuspiciousUserMonitor(commands.Cog):
         """Set the questionnaire channel."""
         await self.config.guild(ctx.guild).questionnaire_channel.set(channel.id)
         await ctx.send(f"Questionnaire channel set to {channel.mention}.")
+
+    @suspiciousmonitor.command(name="test")
+    @commands.has_permissions(administrator=True)
+    async def test(self, ctx):
+        """Toggle the test mode."""
+        settings = await self.config.guild(ctx.guild).all()
+        test_mode = not settings["test_mode"]
+        await self.config.guild(ctx.guild).test_mode.set(test_mode)
+        status = "enabled" if test_mode else "disabled"
+        await ctx.send(f"Test mode has been {status}. All new members will now be treated as suspicious." if test_mode else "Test mode has been disabled.")
