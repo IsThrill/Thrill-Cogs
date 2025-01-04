@@ -1,7 +1,6 @@
 import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-from redbot.core.utils.menus import MenuPages
 from redbot.core.utils.chat_formatting import box
 from datetime import datetime, timezone
 
@@ -113,26 +112,39 @@ class SuspiciousUserMonitor(commands.Cog):
                 embed.add_field(name="User ID", value=f"`{message.author.id}`", inline=False)
                 await alert_channel.send(embed=embed)
 
-    @commands.guild_only()
-    @commands.admin()
-    @commands.group()
+    @commands.group(name="sus", aliases=["Sus"], invoke_without_command=True, case_insensitive=True)
+    @commands.has_permissions(administrator=True)
     async def suspiciousmonitor(self, ctx):
-        """Configure the suspicious user monitor."""
-        pass
+        """Manage suspicious user monitoring."""
+        commands_list = {
+            "sus setrole": "Set the suspicious role for marking suspicious users.",
+            "sus setstaff": "Set the staff role to be pinged in alerts.",
+            "sus setchannel": "Set the channel for posting suspicious user alerts.",
+        }
+        description = "\n".join([f"`{cmd}`: {desc}" for cmd, desc in commands_list.items()])
+        embed = discord.Embed(
+            title="Suspicious Monitor Commands",
+            description=description,
+            color=discord.Color.blue()
+        )
+        await ctx.send(embed=embed)
 
-    @suspiciousmonitor.command()
+    @suspiciousmonitor.command(name="setrole")
+    @commands.has_permissions(administrator=True)
     async def setrole(self, ctx, role: discord.Role):
         """Set the suspicious role."""
         await self.config.guild(ctx.guild).suspicious_role.set(role.id)
         await ctx.send(f"Suspicious role set to {role.mention}.")
 
-    @suspiciousmonitor.command()
+    @suspiciousmonitor.command(name="setstaff")
+    @commands.has_permissions(administrator=True)
     async def setstaff(self, ctx, role: discord.Role):
         """Set the staff role to ping."""
         await self.config.guild(ctx.guild).staff_role.set(role.id)
         await ctx.send(f"Staff role set to {role.mention}.")
 
-    @suspiciousmonitor.command()
+    @suspiciousmonitor.command(name="setchannel")
+    @commands.has_permissions(administrator=True)
     async def setchannel(self, ctx, channel: discord.TextChannel):
         """Set the questionnaire channel."""
         await self.config.guild(ctx.guild).questionnaire_channel.set(channel.id)
