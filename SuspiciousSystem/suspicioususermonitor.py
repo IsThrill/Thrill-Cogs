@@ -82,6 +82,7 @@ class SuspiciousUserMonitor(commands.Cog):
             )
             embed.add_field(name="User ID", value=f"<@{member.id}>", inline=True)  # Clickable User ID
             embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)  # Formatted in EST
+            embed.set_thumbnail(url=member.avatar.url)  # Add user's avatar as thumbnail
 
             view = discord.ui.View()
 
@@ -100,17 +101,21 @@ class SuspiciousUserMonitor(commands.Cog):
                     try:
                         await member.send(
                             "Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the discord, please answer the questionnaire I've provided.\n\n"
-                            "``\n"
+                            "`\n"
                             "- How did you find A New Beginning?\n"
                             "- IF by a friend/source (What source did you use?)\n"
                             "- IF by a friend, what was their name? (Discord, VRC, Etc)\n"
                             "- IF you've had a previous Discord account what was your Previous Discord Account?\n"
-                            "``\n"
+                            "`\n"
                             "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.\n\n"
                             "Hope to hear back from you soon!"
                         )
                     except discord.Forbidden:
-                        pass
+                        staff_channel = guild.get_channel(settings["questionnaire_channel"])
+                        if staff_channel:
+                            await staff_channel.send(
+                                f"Unable to send a DM to <@{member.id}> (ID: {member.id}), please manually inform them of the suspicious role."
+                            )
 
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
 
@@ -174,8 +179,8 @@ class SuspiciousUserMonitor(commands.Cog):
                     description=message.content,
                     color=discord.Color.blue()
                 )
-                embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
-                embed.add_field(name="User ID", value=f"<@{message.author.id}> (`{message.author.id}`)", inline=False)  # Clickable User ID
+                embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)  # Include user avatar
+                embed.add_field(name="User ID", value=f"<@{message.author.id}> ({message.author.id})", inline=False)  # Clickable User ID
 
                 # Add a Ban button to the embed
                 ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
@@ -185,6 +190,17 @@ class SuspiciousUserMonitor(commands.Cog):
                         # Ensure the user is a member in the guild (check interaction.guild)
                         member = interaction.guild.get_member(message.author.id)  # Use interaction.guild instead of message.guild
                         if member:
+                            # Notify them before banning
+                            try:
+                                await member.send(f"You've been banned from the server for the following reason: {message.content}")
+                            except discord.Forbidden:
+                                # If unable to send DM, notify the staff
+                                staff_channel = guild.get_channel(settings["questionnaire_channel"])
+                                if staff_channel:
+                                    await staff_channel.send(
+                                        f"The user <@{message.author.id}> could not be reached through DM."
+                                    )
+
                             # Prompt for ban reason
                             await interaction.response.send_modal(BanReasonModal(member))
                         else:
