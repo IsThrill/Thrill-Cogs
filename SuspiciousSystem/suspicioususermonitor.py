@@ -60,13 +60,14 @@ class SuspiciousUserMonitor(commands.Cog):
                     try:
                         await member.send(
                             "Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the discord, please answer the questionnaire I've provided.\n\n"
-                            "```
-- How did you find A New Beginning?
-- IF by a friend/source (What source did you use?)
-- IF by a friend, what was their name? (Discord, VRC, Etc)
-- IF you've had a previous Discord account what was your Previous Discord Account?
-```
-If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.\n\nHope to hear back from you soon!"
+                            "``\n"
+                            "- How did you find A New Beginning?\n"
+                            "- IF by a friend/source (What source did you use?)\n"
+                            "- IF by a friend, what was their name? (Discord, VRC, Etc)\n"
+                            "- IF you've had a previous Discord account what was your Previous Discord Account?\n"
+                            "``\n"
+                            "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.\n\n"
+                            "Hope to hear back from you soon!"
                         )
                     except discord.Forbidden:
                         pass
