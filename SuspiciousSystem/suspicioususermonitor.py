@@ -2,7 +2,7 @@ import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box
-from datetime import datetime, timezone, timedelta  # Added timedelta import
+from datetime import datetime, timezone, timedelta
 
 class SuspiciousUserMonitor(commands.Cog):
     """Monitor and manage new users with accounts younger than 3 months."""
@@ -51,8 +51,9 @@ class SuspiciousUserMonitor(commands.Cog):
 
             view = discord.ui.View()
 
-            @discord.ui.button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
-            async def mark_suspicious(interaction: discord.Interaction, button: discord.ui.Button):
+            # Create button instances
+            mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
+            async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
                     await member.remove_roles(*[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)], reason="Marked as suspicious")
@@ -79,8 +80,10 @@ class SuspiciousUserMonitor(commands.Cog):
 
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
 
-            @discord.ui.button(label="Verify as Safe", style=discord.ButtonStyle.success)
-            async def verify_safe(interaction: discord.Interaction, button: discord.ui.Button):
+            mark_suspicious_button.callback = mark_suspicious
+
+            verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+            async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
@@ -90,8 +93,11 @@ class SuspiciousUserMonitor(commands.Cog):
 
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
-            view.add_item(mark_suspicious)
-            view.add_item(verify_safe)
+            verify_safe_button.callback = verify_safe
+
+            # Add buttons to the view
+            view.add_item(mark_suspicious_button)
+            view.add_item(verify_safe_button)
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
