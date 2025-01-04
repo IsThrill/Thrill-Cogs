@@ -2,7 +2,7 @@ import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta  # Added timedelta import
 
 class SuspiciousUserMonitor(commands.Cog):
     """Monitor and manage new users with accounts younger than 3 months."""
