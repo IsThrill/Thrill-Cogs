@@ -1,8 +1,8 @@
 import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-from redbot.core.utils.chat_formatting import box
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+import pytz  # Import pytz for timezone conversion
 
 class SuspiciousUserMonitor(commands.Cog):
     """Monitor and manage new users with accounts younger than 3 months."""
@@ -15,7 +15,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "staff_role": None,
             "questionnaire_channel": None,
             "suspicious_users": {},
-            "test_mode": False,  # Add a test_mode setting to the guild configuration
+            "test_mode": False,
             "user_responses": {},  # To track user responses
         }
         self.config.register_guild(**default_guild)
@@ -32,7 +32,11 @@ class SuspiciousUserMonitor(commands.Cog):
         if settings["test_mode"]:
             account_age = timedelta(days=0)  # Fake account age to bypass the 3-month check
         else:
-            account_age = datetime.now(timezone.utc) - member.created_at
+            account_age = datetime.now(pytz.utc) - member.created_at  # Get UTC time and calculate age
+
+        # Convert account creation date to EST
+        est_tz = pytz.timezone("US/Eastern")
+        account_creation_est = member.created_at.astimezone(est_tz)
 
         if account_age.days < 90 or settings["test_mode"]:  # If account is younger than 3 months or in test mode
             staff_role = guild.get_role(settings["staff_role"])
@@ -47,8 +51,8 @@ class SuspiciousUserMonitor(commands.Cog):
                 description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
                 color=discord.Color.red()
             )
-            embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
-            embed.add_field(name="Account Creation Date", value=member.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=True)
+            embed.add_field(name="User ID", value=f"<@{member.id}>", inline=True)  # Clickable User ID
+            embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)  # Formatted in EST
 
             view = discord.ui.View()
 
@@ -125,6 +129,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
         # Prevent multiple responses from the same user after being marked suspicious
         if str(message.author.id) in settings["suspicious_users"]:
+            # If the user already responded, ignore further messages
             if message.author.id in settings["user_responses"]:
                 await message.author.send("You have already submitted your response. You cannot send further messages.")
                 return  # Ignore further messages from this user
@@ -141,7 +146,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
-                embed.add_field(name="User ID", value=f"<@{message.author.id}> (`{message.author.id}`)", inline=False)
+                embed.add_field(name="User ID", value=f"<@{message.author.id}> (`{message.author.id}`)", inline=False)  # Clickable User ID
 
                 # Add a Ban button to the embed
                 ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
