@@ -4,6 +4,35 @@ from redbot.core.bot import Red
 from datetime import datetime, timedelta
 import pytz  # Import pytz for timezone conversion
 
+class BanReasonModal(discord.ui.Modal):
+    def __init__(self, member: discord.Member):
+        super().__init__(title="Ban Reason")
+        self.member = member
+
+        # Text input for ban reason
+        self.reason = discord.ui.TextInput(
+            label="Ban Reason", placeholder="Enter the reason for banning the user...", style=discord.TextStyle.long
+        )
+        self.add_item(self.reason)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        reason = self.reason.value
+        try:
+            # Ban the member with the reason provided
+            await self.member.ban(reason=reason)
+            await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+            
+            # Send DM with the reason
+            try:
+                await self.member.send(f"You've been banned from A New Beginning. Reason: {reason}")
+            except discord.Forbidden:
+                pass
+
+        except discord.Forbidden:
+            await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
+
 class SuspiciousUserMonitor(commands.Cog):
     """Monitor and manage new users with accounts younger than 3 months."""
 
@@ -153,13 +182,13 @@ class SuspiciousUserMonitor(commands.Cog):
                 
                 async def ban_user(interaction: discord.Interaction):
                     if interaction.user.guild_permissions.ban_members:
-                        try:
-                            await message.author.ban(reason="Suspicious user")
-                            await interaction.response.send_message(f"User {message.author} has been banned.", ephemeral=True)
-                        except discord.Forbidden:
-                            await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
-                        except discord.HTTPException:
-                            await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
+                        # Ensure the user is a member in the guild
+                        member = message.guild.get_member(message.author.id)
+                        if member:
+                            # Prompt for ban reason
+                            await interaction.response.send_modal(BanReasonModal(member))
+                        else:
+                            await interaction.response.send_message("User is no longer a member of the server.", ephemeral=True)
 
                 ban_button.callback = ban_user
 
