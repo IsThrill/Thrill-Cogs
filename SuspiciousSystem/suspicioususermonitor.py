@@ -16,6 +16,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "questionnaire_channel": None,
             "suspicious_users": {},
             "test_mode": False,  # Add a test_mode setting to the guild configuration
+            "user_responses": {},  # To track user responses
         }
         self.config.register_guild(**default_guild)
 
@@ -85,11 +86,21 @@ class SuspiciousUserMonitor(commands.Cog):
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
+                    # Verify and reinstate roles
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
 
                     await member.remove_roles(suspicious_role, reason="Verified as safe")
                     await member.add_roles(*[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)], reason="Verified as safe")
+
+                    # Send DM to the user confirming their safe status
+                    try:
+                        await member.send(
+                            "**Approved**\n"
+                            "Thank you for your confirmation, we've gone ahead and re-instated your roles, and given your access back into the discord server."
+                        )
+                    except discord.Forbidden:
+                        pass
 
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
@@ -112,8 +123,17 @@ class SuspiciousUserMonitor(commands.Cog):
         settings = await self.config.guild(guild).all()
         alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
+        # Prevent multiple responses from the same user after being marked suspicious
         if str(message.author.id) in settings["suspicious_users"]:
-            await message.author.send("Your response has been submitted.")
+            if message.author.id in settings["user_responses"]:
+                await message.author.send("You have already submitted your response. You cannot send further messages.")
+                return  # Ignore further messages from this user
+
+            # Save the user's response
+            async with self.config.guild(guild).user_responses() as user_responses:
+                user_responses[str(message.author.id)] = message.content
+
+            # Send the response to the alert channel
             if alert_channel:
                 embed = discord.Embed(
                     title="Suspicious User Response",
@@ -121,8 +141,29 @@ class SuspiciousUserMonitor(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
-                embed.add_field(name="User ID", value=f"`{message.author.id}`", inline=False)
-                await alert_channel.send(embed=embed)
+                embed.add_field(name="User ID", value=f"<@{message.author.id}> (`{message.author.id}`)", inline=False)
+
+                # Add a Ban button to the embed
+                ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
+                
+                async def ban_user(interaction: discord.Interaction):
+                    if interaction.user.guild_permissions.ban_members:
+                        try:
+                            await message.author.ban(reason="Suspicious user")
+                            await interaction.response.send_message(f"User {message.author} has been banned.", ephemeral=True)
+                        except discord.Forbidden:
+                            await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
+                        except discord.HTTPException:
+                            await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
+
+                ban_button.callback = ban_user
+
+                view = discord.ui.View()
+                view.add_item(ban_button)
+
+                await alert_channel.send(embed=embed, view=view)
+
+            await message.author.send("Your response has been submitted.")
 
     @commands.group(name="sus", aliases=["Sus"], invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
