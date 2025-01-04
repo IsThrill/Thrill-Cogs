@@ -114,7 +114,7 @@ class SuspiciousUserMonitor(commands.Cog):
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
                             await staff_channel.send(
-                                f"Unable to send a DM to <@{member.id}> (ID: {member.id}), please manually inform them of the suspicious role."
+                                f"Unable to send a DM to <@{member.id}> (ID: {member.id})."
                             )
 
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
