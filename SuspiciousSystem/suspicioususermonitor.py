@@ -179,11 +179,11 @@ class SuspiciousUserMonitor(commands.Cog):
 
                 # Add a Ban button to the embed
                 ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
-                
+
                 async def ban_user(interaction: discord.Interaction):
                     if interaction.user.guild_permissions.ban_members:
-                        # Ensure the user is a member in the guild
-                        member = message.guild.get_member(message.author.id)
+                        # Ensure the user is a member in the guild (check interaction.guild)
+                        member = interaction.guild.get_member(message.author.id)  # Use interaction.guild instead of message.guild
                         if member:
                             # Prompt for ban reason
                             await interaction.response.send_modal(BanReasonModal(member))
