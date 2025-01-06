@@ -1,6 +1,7 @@
 import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
+from redbot.core.utils.chat_formatting import box
 from datetime import datetime, timedelta
 import pytz
 
@@ -45,7 +46,6 @@ class SuspiciousUserMonitor(commands.Cog):
             "suspicious_users": {},
             "test_mode": False,
             "user_responses": {},
-            "cooldowns": {}
         }
         self.config.register_guild(**default_guild)
 
@@ -74,7 +74,7 @@ class SuspiciousUserMonitor(commands.Cog):
                 description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
                 color=discord.Color.red(),
             )
-            embed.add_field(name="User ID", value=f"<@{member.id}>", inline=True)
+            embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
             embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
             embed.set_thumbnail(url=member.avatar.url)
 
@@ -147,14 +147,6 @@ class SuspiciousUserMonitor(commands.Cog):
         alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
         if str(message.author.id) in settings["suspicious_users"]:
-            async with self.config.guild(guild).cooldowns() as cooldowns:
-                if str(message.author.id) in cooldowns:
-                    last_message_time = datetime.fromisoformat(cooldowns[str(message.author.id)])
-                    if datetime.now() - last_message_time < timedelta(seconds=10):
-                        await message.author.send("Please wait 10 seconds before sending another response.")
-                        return
-                cooldowns[str(message.author.id)] = datetime.now().isoformat()
-
             async with self.config.guild(guild).user_responses() as user_responses:
                 if str(message.author.id) in user_responses:
                     await message.author.send("You have already submitted your response.")
@@ -169,7 +161,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     color=discord.Color.blue(),
                 )
                 embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
-                embed.add_field(name="User ID", value=f"<@{message.author.id}> ({message.author.id})", inline=False)
+                embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
 
                 ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
 
