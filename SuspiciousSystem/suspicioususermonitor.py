@@ -135,7 +135,8 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                await alert_channel.send(content=f"<@&{staff_role.id}>", embed=embed, view=view)
+                staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
+                await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -147,40 +148,43 @@ class SuspiciousUserMonitor(commands.Cog):
         alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
         if str(message.author.id) in settings["suspicious_users"]:
+            # Check if the user has already submitted their response.
             async with self.config.guild(guild).user_responses() as user_responses:
                 if str(message.author.id) in user_responses:
                     await message.author.send("You have already submitted your response.")
-                    return
+                    return  # Prevent further submission.
 
+                # Store the first response.
                 user_responses[str(message.author.id)] = message.content
 
-            if alert_channel:
-                embed = discord.Embed(
-                    title="Suspicious User Response",
-                    description=message.content,
-                    color=discord.Color.blue(),
-                )
-                embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
-                embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
+                if alert_channel:
+                    embed = discord.Embed(
+                        title="Suspicious User Response",
+                        description=message.content,
+                        color=discord.Color.blue(),
+                    )
+                    embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
+                    embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
 
-                ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
+                    ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
 
-                async def ban_user(interaction: discord.Interaction):
-                    if interaction.user.guild_permissions.ban_members:
-                        member = interaction.guild.get_member(message.author.id)
-                        if member:
-                            await interaction.response.send_modal(BanReasonModal(member))
-                        else:
-                            await interaction.response.send_message("User is no longer a member of the server.", ephemeral=True)
+                    async def ban_user(interaction: discord.Interaction):
+                        if interaction.user.guild_permissions.ban_members:
+                            member = interaction.guild.get_member(message.author.id)
+                            if member:
+                                await interaction.response.send_modal(BanReasonModal(member))
+                            else:
+                                await interaction.response.send_message("User is no longer a member of the server.", ephemeral=True)
 
-                ban_button.callback = ban_user
+                    ban_button.callback = ban_user
 
-                view = discord.ui.View()
-                view.add_item(ban_button)
+                    view = discord.ui.View()
+                    view.add_item(ban_button)
 
-                await alert_channel.send(embed=embed, view=view)
+                    staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
+                    await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
-            await message.author.send("Your response has been submitted.")
+                await message.author.send("Your response has been submitted.")
 
     @commands.group(name="sus", invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
