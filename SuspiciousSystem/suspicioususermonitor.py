@@ -121,7 +121,8 @@ class SuspiciousUserMonitor(commands.Cog):
             mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
 
             async def mark_suspicious(interaction: discord.Interaction):
-                if interaction.user.guild_permissions.manage_roles:
+                member = interaction.guild.get_member(member.id)  # Fetch the Member object
+                if member and interaction.user.guild_permissions.manage_roles:
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
                     await member.remove_roles(
                         *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
@@ -149,7 +150,8 @@ class SuspiciousUserMonitor(commands.Cog):
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
             async def verify_safe(interaction: discord.Interaction):
-                if interaction.user.guild_permissions.manage_roles:
+                member = interaction.guild.get_member(member.id)  # Fetch the Member object
+                if member and interaction.user.guild_permissions.manage_roles:
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
 
@@ -209,23 +211,21 @@ class SuspiciousUserMonitor(commands.Cog):
 
                     # Ban user callback
                     async def ban_user(interaction: discord.Interaction):
-                        if interaction.user.guild_permissions.ban_members:
-                            member = interaction.guild.get_member(message.author.id)
-                            if member:
-                                await interaction.response.send_modal(BanReasonModal(member))
-                            else:
-                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
+                        member = interaction.guild.get_member(message.author.id)  # Fetch the Member object
+                        if member and interaction.user.guild_permissions.ban_members:
+                            await interaction.response.send_modal(BanReasonModal(member))
+                        else:
+                            await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
                     ban_button.callback = ban_user
 
                     # Staff reply callback
                     async def staff_reply(interaction: discord.Interaction):
-                        if interaction.user.guild_permissions.manage_roles:
-                            member = interaction.guild.get_member(message.author.id)
-                            if member:
-                                await interaction.response.send_modal(StaffReplyModal(member, self.config))  # Pass config here
-                            else:
-                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
+                        member = interaction.guild.get_member(message.author.id)  # Fetch the Member object
+                        if member and interaction.user.guild_permissions.manage_roles:
+                            await interaction.response.send_modal(StaffReplyModal(member, self.config))  # Pass config here
+                        else:
+                            await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
                     staff_reply_button.callback = staff_reply
 
