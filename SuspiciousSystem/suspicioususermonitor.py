@@ -85,7 +85,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             view = discord.ui.View(timeout=600)
 
-            mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
+            mark_suspicious_button = discord.ui.Button(label="Mark Sus", style=discord.ButtonStyle.danger)
 
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
@@ -107,28 +107,28 @@ class SuspiciousUserMonitor(commands.Cog):
                             )
 
                             question1 = discord.ui.TextInput(
-                                label="How did you find A New Beginning?",
+                                label="How did you find ANB?",
                                 placeholder="Answer here...",
                                 style=discord.TextStyle.long,
                             )
                             modal.add_item(question1)
 
                             question2 = discord.ui.TextInput(
-                                label="If by a friend, what was their name? (Discord, VRC, Etc.)",
+                                label="By friend? Name?",
                                 placeholder="Answer here...",
                                 style=discord.TextStyle.long,
                             )
                             modal.add_item(question2)
 
                             question3 = discord.ui.TextInput(
-                                label="If by a source, what source did you use?",
+                                label="By source? What source?",
                                 placeholder="Answer here...",
                                 style=discord.TextStyle.long,
                             )
                             modal.add_item(question3)
 
                             question4 = discord.ui.TextInput(
-                                label="If you've had a previous Discord account, what was your Previous Discord Account?",
+                                label="Previous account?",
                                 placeholder="Answer here...",
                                 style=discord.TextStyle.long,
                             )
@@ -136,10 +136,10 @@ class SuspiciousUserMonitor(commands.Cog):
 
                             async def on_submit(modal_interaction: discord.Interaction):
                                 user_responses = {
-                                    "How did you find A New Beginning?": question1.value,
-                                    "If by a friend, what was their name?": question2.value,
-                                    "If by a source, what source did you use?": question3.value,
-                                    "If you've had a previous Discord account, what was your Previous Discord Account?": question4.value,
+                                    "How did you find ANB?": question1.value,
+                                    "By friend? Name?": question2.value,
+                                    "By source? What source?": question3.value,
+                                    "Previous account?": question4.value,
                                 }
 
                                 # Send the responses to the staff channel
@@ -180,7 +180,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             mark_suspicious_button.callback = mark_suspicious
 
-            verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+            verify_safe_button = discord.ui.Button(label="Verify Safe", style=discord.ButtonStyle.success)
 
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
@@ -207,7 +207,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
+                staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
                 await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
     @commands.Cog.listener()
@@ -238,7 +238,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
                     embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
 
-                    ban_button = discord.ui.Button(label="Ban User", style=discord.ButtonStyle.danger)
+                    ban_button = discord.ui.Button(label="Ban", style=discord.ButtonStyle.danger)
 
                     async def ban_user(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.ban_members:
