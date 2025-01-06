@@ -31,7 +31,10 @@ class BanReasonModal(discord.ui.Modal):
                     await staff_channel.send(f"Failed to DM <@{self.member.id}> the ban reason. Proceeding with the ban.")
             
             await self.member.ban(reason=reason)
-            await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+            if interaction.response.is_done():
+                await interaction.followup.send(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
 
         except discord.Forbidden:
             await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
@@ -166,7 +169,8 @@ class SuspiciousUserMonitor(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-                    await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
 
