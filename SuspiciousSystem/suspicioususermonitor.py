@@ -98,7 +98,7 @@ class SuspiciousUserMonitor(commands.Cog):
         est_tz = pytz.timezone("US/Eastern")
         account_creation_est = member.created_at.astimezone(est_tz)
 
-        if account_age.days < settings["min_account_age"] or settings["test_mode"]:
+        if account_age.days < settings["min_account_age"]:
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
@@ -172,8 +172,10 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel and not settings["test_mode"]:
-                everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
-                await everyone_message.delete()
+
+                if not settings["test_mode"]:
+                    everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
+                    await everyone_message.delete()
 
                 await alert_channel.send(f"<@&{staff_role.id}>")
                 await alert_channel.send(embed=embed, view=view)
@@ -231,8 +233,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     view.add_item(ban_button)
                     view.add_item(staff_reply_button)
 
-                    if not settings["test_mode"]:
-                        await alert_channel.send(f"<@&{settings['staff_role']}>")
+                            await alert_channel.send(f"<@&{settings['staff_role']}>")
                         await alert_channel.send(embed=embed, view=view)
 
                 await message.author.send("Your response has been submitted.")
