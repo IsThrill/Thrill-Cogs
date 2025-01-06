@@ -39,9 +39,10 @@ class BanReasonModal(discord.ui.Modal):
             await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
 
 class StaffReplyModal(Modal):
-    def __init__(self, member: discord.Member):
+    def __init__(self, member: discord.Member, config: Config):
         super().__init__(title="Staff Reply")
         self.member = member
+        self.config = config  # Store the config
         self.reply = TextInput(
             label="Your Reply",
             placeholder="Enter your reply to the user...",
@@ -52,13 +53,19 @@ class StaffReplyModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         reply_content = self.reply.value
         try:
-            # Send the reply to the user
-            await self.member.send(f"**Staff Reply:** {reply_content}")
+            # Send the reply to the user as an embedded message
+            embed = discord.Embed(
+                title="**Staff Reply**",
+                description=reply_content,
+                color=discord.Color.green(),
+            )
+            embed.set_author(name=str(interaction.user), icon_url=interaction.user.avatar.url)
+            await self.member.send(embed=embed)
             await interaction.response.send_message(f"Staff reply sent to {self.member}.", ephemeral=True)
             
-            # Clear previous response so the user can resubmit
+            # Clear previous response so the user can not resubmit
             guild = interaction.guild
-            settings = await Config.get_conf(None, identifier=1234567890).guild(guild).all()
+            settings = await self.config.guild(guild).all()
             async with self.config.guild(guild).user_responses() as user_responses:
                 if str(self.member.id) in user_responses:
                     del user_responses[str(self.member.id)]
@@ -216,7 +223,7 @@ class SuspiciousUserMonitor(commands.Cog):
                         if interaction.user.guild_permissions.manage_roles:
                             member = interaction.guild.get_member(message.author.id)
                             if member:
-                                await interaction.response.send_modal(StaffReplyModal(member))
+                                await interaction.response.send_modal(StaffReplyModal(member, self.config))  # Pass config here
                             else:
                                 await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
