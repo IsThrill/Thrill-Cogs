@@ -42,7 +42,7 @@ class StaffReplyModal(Modal):
     def __init__(self, member: discord.Member, config: Config):
         super().__init__(title="Staff Reply")
         self.member = member
-        self.config = config  # Store the config
+        self.config = config
         self.reply = TextInput(
             label="Your Reply",
             placeholder="Enter your reply to the user...",
@@ -53,7 +53,6 @@ class StaffReplyModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         reply_content = self.reply.value
         try:
-            # Send the reply to the user as an embedded message
             embed = discord.Embed(
                 title="**Staff Reply**",
                 description=reply_content,
@@ -63,7 +62,6 @@ class StaffReplyModal(Modal):
             await self.member.send(embed=embed)
             await interaction.response.send_message(f"Staff reply sent to {self.member}.", ephemeral=True)
             
-            # Clear previous response so the user can not resubmit
             guild = interaction.guild
             settings = await self.config.guild(guild).all()
             async with self.config.guild(guild).user_responses() as user_responses:
@@ -173,8 +171,10 @@ class SuspiciousUserMonitor(commands.Cog):
             view.add_item(verify_safe_button)
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
-            if alert_channel:
-                # First, send the ping to notify the staff role
+            if alert_channel and not settings["test_mode"]:
+                everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
+                await everyone_message.delete()
+
                 await alert_channel.send(f"<@&{staff_role.id}>")
                 await alert_channel.send(embed=embed, view=view)
 
@@ -188,13 +188,11 @@ class SuspiciousUserMonitor(commands.Cog):
         alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
         if str(message.author.id) in settings["suspicious_users"]:
-            # Check if the user has already submitted their response.
             async with self.config.guild(guild).user_responses() as user_responses:
                 if str(message.author.id) in user_responses:
                     await message.author.send("You have already submitted your response.")
                     return  
 
-                # Store the first response.
                 user_responses[str(message.author.id)] = message.content
 
                 if alert_channel:
@@ -209,7 +207,6 @@ class SuspiciousUserMonitor(commands.Cog):
                     ban_button = Button(label="Ban User", style=discord.ButtonStyle.danger)
                     staff_reply_button = Button(label="Staff Reply", style=discord.ButtonStyle.primary)
 
-                    # Ban user callback
                     async def ban_user(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.ban_members:
                             member = interaction.guild.get_member(message.author.id)
@@ -220,12 +217,11 @@ class SuspiciousUserMonitor(commands.Cog):
 
                     ban_button.callback = ban_user
 
-                    # Staff reply callback
                     async def staff_reply(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.manage_roles:
                             member = interaction.guild.get_member(message.author.id)
                             if member:
-                                await interaction.response.send_modal(StaffReplyModal(member, self.config))  # Pass config here
+                                await interaction.response.send_modal(StaffReplyModal(member, self.config))
                             else:
                                 await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
@@ -235,9 +231,9 @@ class SuspiciousUserMonitor(commands.Cog):
                     view.add_item(ban_button)
                     view.add_item(staff_reply_button)
 
-                    # First, send the ping to notify the staff role
-                    await alert_channel.send(f"<@&{settings['staff_role']}>")
-                    await alert_channel.send(embed=embed, view=view)
+                    if not settings["test_mode"]:
+                        await alert_channel.send(f"<@&{settings['staff_role']}>")
+                        await alert_channel.send(embed=embed, view=view)
 
                 await message.author.send("Your response has been submitted.")
 
@@ -263,24 +259,36 @@ class SuspiciousUserMonitor(commands.Cog):
     @suspiciousmonitor.command(name="setrole")
     @commands.has_permissions(administrator=True)
     async def setrole(self, ctx, role: discord.Role):
+        """
+        Sets the suspicious role to place users into. 
+        """
         await self.config.guild(ctx.guild).suspicious_role.set(role.id)
         await ctx.send(f"Suspicious role set to {role.mention}.")
 
     @suspiciousmonitor.command(name="setstaff")
     @commands.has_permissions(administrator=True)
     async def setstaff(self, ctx, role: discord.Role):
+        """
+        Sets the staff role to ping the staff. 
+        """
         await self.config.guild(ctx.guild).staff_role.set(role.id)
         await ctx.send(f"Staff role set to {role.mention}.")
 
     @suspiciousmonitor.command(name="setchannel")
     @commands.has_permissions(administrator=True)
     async def setchannel(self, ctx, channel: discord.TextChannel):
+        """
+        Sets the alert channel for staff to view. 
+        """
         await self.config.guild(ctx.guild).questionnaire_channel.set(channel.id)
         await ctx.send(f"Questionnaire channel set to {channel.mention}.")
 
     @suspiciousmonitor.command(name="test")
     @commands.has_permissions(administrator=True)
     async def test(self, ctx):
+        """
+        Enable testing mode. 
+        """
         settings = await self.config.guild(ctx.guild).all()
         test_mode = not settings["test_mode"]
         await self.config.guild(ctx.guild).test_mode.set(test_mode)
@@ -298,11 +306,11 @@ class SuspiciousUserMonitor(commands.Cog):
                 del user_responses[str(user.id)]
                 await ctx.send(f"Response for {user} has been cleared. They can now resubmit.")
             else:
-                await ctx.send(f"No response found for {user}.")
-
-    @suspiciousmonitor.command(name="setaccountage")
+                await ctx.send(f"No responses found for {user}.")
+    
+    @suspiciousmonitor.command(name="setage")
     @commands.has_permissions(administrator=True)
-    async def setaccountage(self, ctx, days: int):
+    async def setage(self, ctx, days: int):
         """
         Set the minimum account age (in days) required before users are flagged as suspicious.
         """
