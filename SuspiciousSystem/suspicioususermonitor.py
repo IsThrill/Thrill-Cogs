@@ -84,6 +84,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "suspicious_users": {},
             "test_mode": False,
             "user_responses": {},
+            "min_account_age": 90,
         }
         self.config.register_guild(**default_guild)
 
@@ -99,7 +100,7 @@ class SuspiciousUserMonitor(commands.Cog):
         est_tz = pytz.timezone("US/Eastern")
         account_creation_est = member.created_at.astimezone(est_tz)
 
-        if account_age.days < 90 or settings["test_mode"]:
+        if account_age.days < settings["min_account_age"] or settings["test_mode"]:
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
@@ -173,8 +174,9 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
-                await alert_channel.send(content=staff_ping, embed=embed, view=view)
+                # First, send the ping to notify the staff role
+                await alert_channel.send(f"<@&{staff_role.id}>")
+                await alert_channel.send(embed=embed, view=view)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -233,8 +235,9 @@ class SuspiciousUserMonitor(commands.Cog):
                     view.add_item(ban_button)
                     view.add_item(staff_reply_button)
 
-                    staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
-                    await alert_channel.send(content=staff_ping, embed=embed, view=view)
+                    # First, send the ping to notify the staff role
+                    await alert_channel.send(f"<@&{settings['staff_role']}>")
+                    await alert_channel.send(embed=embed, view=view)
 
                 await message.author.send("Your response has been submitted.")
 
@@ -247,6 +250,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
             "sus clearresponse": "Clear a user's response so they can resubmit.",
+            "sus setaccountage": "Set the minimum account age for alerting staff.",
         }
         description = "\n".join([f"{cmd}: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
@@ -295,3 +299,12 @@ class SuspiciousUserMonitor(commands.Cog):
                 await ctx.send(f"Response for {user} has been cleared. They can now resubmit.")
             else:
                 await ctx.send(f"No response found for {user}.")
+
+    @suspiciousmonitor.command(name="setaccountage")
+    @commands.has_permissions(administrator=True)
+    async def setaccountage(self, ctx, days: int):
+        """
+        Set the minimum account age (in days) required before users are flagged as suspicious.
+        """
+        await self.config.guild(ctx.guild).min_account_age.set(days)
+        await ctx.send(f"Minimum account age set to {days} days.")
