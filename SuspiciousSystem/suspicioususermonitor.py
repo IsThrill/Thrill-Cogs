@@ -40,50 +40,6 @@ class BanReasonModal(discord.ui.Modal):
         except discord.HTTPException:
             await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
 
-class VerificationModal(discord.ui.Modal):
-    def __init__(self, member: discord.Member, bot: Red):
-        super().__init__(title="Verification Questions")
-        self.member = member
-        self.bot = bot
-
-        # Adding the questions as TextInput fields
-        self.question_1 = discord.ui.TextInput(label="How did you find A New Beginning?", style=discord.TextStyle.long)
-        self.question_2 = discord.ui.TextInput(label="If by a friend/source, what source?", style=discord.TextStyle.long)
-        self.question_3 = discord.ui.TextInput(label="If by a friend, what was their name?", style=discord.TextStyle.long)
-        self.question_4 = discord.ui.TextInput(label="If you've had a previous Discord account, what was your previous account?", style=discord.TextStyle.long)
-        
-        self.add_item(self.question_1)
-        self.add_item(self.question_2)
-        self.add_item(self.question_3)
-        self.add_item(self.question_4)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        # Collect responses
-        responses = {
-            "How did you find A New Beginning?": self.question_1.value,
-            "If by a friend/source, what source?": self.question_2.value,
-            "If by a friend, what was their name?": self.question_3.value,
-            "If you've had a previous Discord account, what was your previous account?": self.question_4.value,
-        }
-        
-        # Send the responses to the staff channel
-        guild = interaction.guild
-        settings = await self.bot.get_cog('SuspiciousUserMonitor').config.guild(guild).all()
-        alert_channel = guild.get_channel(settings["questionnaire_channel"])
-
-        embed = discord.Embed(
-            title=f"Suspicious User Response from {self.member}",
-            color=discord.Color.blue(),
-        )
-        for question, response in responses.items():
-            embed.add_field(name=question, value=response, inline=False)
-        
-        if alert_channel:
-            await alert_channel.send(embed=embed)
-
-        # Acknowledge the user
-        await interaction.response.send_message("Thank you for your response. Your information has been sent to the staff.", ephemeral=True)
-
 class SuspiciousUserMonitor(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
@@ -142,20 +98,79 @@ class SuspiciousUserMonitor(commands.Cog):
                         suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        # Send interactive message to the user
-                        verification_button = discord.ui.Button(label="Verification", style=discord.ButtonStyle.success)
+                        # New DM message with the "Verify" button
+                        verify_button = discord.ui.Button(label="Verify", style=discord.ButtonStyle.success)
 
-                        async def verify_user(interaction: discord.Interaction):
-                            # Send the modal for verification questions
-                            await interaction.response.send_modal(VerificationModal(member, self.bot))
+                        async def verify_response(interaction: discord.Interaction):
+                            modal = discord.ui.Modal(
+                                title="Suspicious Account Questionnaire"
+                            )
 
-                        verification_button.callback = verify_user
+                            question1 = discord.ui.TextInput(
+                                label="How did you find A New Beginning?",
+                                placeholder="Answer here...",
+                                style=discord.TextStyle.long,
+                            )
+                            modal.add_item(question1)
 
-                        dm_message = await member.send(
+                            question2 = discord.ui.TextInput(
+                                label="If by a friend, what was their name? (Discord, VRC, Etc.)",
+                                placeholder="Answer here...",
+                                style=discord.TextStyle.long,
+                            )
+                            modal.add_item(question2)
+
+                            question3 = discord.ui.TextInput(
+                                label="If by a source, what source did you use?",
+                                placeholder="Answer here...",
+                                style=discord.TextStyle.long,
+                            )
+                            modal.add_item(question3)
+
+                            question4 = discord.ui.TextInput(
+                                label="If you've had a previous Discord account, what was your Previous Discord Account?",
+                                placeholder="Answer here...",
+                                style=discord.TextStyle.long,
+                            )
+                            modal.add_item(question4)
+
+                            async def on_submit(modal_interaction: discord.Interaction):
+                                user_responses = {
+                                    "How did you find A New Beginning?": question1.value,
+                                    "If by a friend, what was their name?": question2.value,
+                                    "If by a source, what source did you use?": question3.value,
+                                    "If you've had a previous Discord account, what was your Previous Discord Account?": question4.value,
+                                }
+
+                                # Send the responses to the staff channel
+                                alert_channel = guild.get_channel(settings["questionnaire_channel"])
+                                if alert_channel:
+                                    embed = discord.Embed(
+                                        title="Suspicious User Response",
+                                        description="Here are the user's answers:",
+                                        color=discord.Color.blue(),
+                                    )
+                                    for q, a in user_responses.items():
+                                        embed.add_field(name=q, value=a, inline=False)
+
+                                    staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
+                                    await alert_channel.send(content=staff_ping, embed=embed)
+
+                                await interaction.response.send_message("Your responses have been submitted for review.", ephemeral=True)
+
+                            modal.on_submit = on_submit
+                            await interaction.response.send_modal(modal)
+
+                        verify_button.callback = verify_response
+
+                        await member.send(
                             "Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please click the button below."
                         )
-                        view.add_item(verification_button)
-                        await dm_message.edit(content="Hey there, you've been automatically assigned and put into a suspicious category. Please click below to verify.", view=view)
+
+                        view = discord.ui.View()
+                        view.add_item(verify_button)
+                        await member.send(view=view)
+
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
