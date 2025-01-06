@@ -31,10 +31,7 @@ class BanReasonModal(discord.ui.Modal):
                     await staff_channel.send(f"Failed to DM <@{self.member.id}> the ban reason. Proceeding with the ban.")
             
             await self.member.ban(reason=reason)
-            if interaction.response.is_done():
-                await interaction.followup.send(f"User {self.member} has been banned for: {reason}", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+            await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
 
         except discord.Forbidden:
             await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
@@ -153,7 +150,7 @@ class SuspiciousUserMonitor(commands.Cog):
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
             async def verify_safe(interaction: discord.Interaction):
-                member = interaction.guild.get_member(interaction.user.id)  # Correct member retrieval here
+                member = interaction.guild.get_member(member.id)  # Fetch the Member object
                 if member and interaction.user.guild_permissions.manage_roles:
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
@@ -169,8 +166,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     except discord.Forbidden:
                         pass
 
-                    if not interaction.response.is_done():
-                        await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
+                    await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
 
