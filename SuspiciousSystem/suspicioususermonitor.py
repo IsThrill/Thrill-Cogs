@@ -205,10 +205,10 @@ class SuspiciousUserMonitor(commands.Cog):
                     )
                     embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
                     embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
-
+                
                     ban_button = Button(label="Ban User", style=discord.ButtonStyle.danger)
                     staff_reply_button = Button(label="Staff Reply", style=discord.ButtonStyle.primary)
-
+                
                     async def ban_user(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.ban_members:
                             member = interaction.guild.get_member(message.author.id)
@@ -216,9 +216,9 @@ class SuspiciousUserMonitor(commands.Cog):
                                 await interaction.response.send_modal(BanReasonModal(member))
                             else:
                                 await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
-
+                
                     ban_button.callback = ban_user
-
+                
                     async def staff_reply(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.manage_roles:
                             member = interaction.guild.get_member(message.author.id)
@@ -226,16 +226,16 @@ class SuspiciousUserMonitor(commands.Cog):
                                 await interaction.response.send_modal(StaffReplyModal(member, self.config))
                             else:
                                 await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
-
+                
                     staff_reply_button.callback = staff_reply
-
+                
                     view = View()
                     view.add_item(ban_button)
                     view.add_item(staff_reply_button)
-
-                            await alert_channel.send(f"<@&{settings['staff_role']}>")
-                        await alert_channel.send(embed=embed, view=view)
-
+                
+                    await alert_channel.send(f"<@&{settings['staff_role']}>")
+                    await alert_channel.send(embed=embed, view=view)
+                
                 await message.author.send("Your response has been submitted.")
 
     @commands.group(name="sus", invoke_without_command=True, case_insensitive=True)
