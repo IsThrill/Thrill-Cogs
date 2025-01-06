@@ -2,7 +2,7 @@ import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from datetime import datetime, timedelta
-import pytz  
+import pytz
 
 class BanReasonModal(discord.ui.Modal):
     def __init__(self, member: discord.Member):
@@ -10,7 +10,9 @@ class BanReasonModal(discord.ui.Modal):
         self.member = member
 
         self.reason = discord.ui.TextInput(
-            label="Ban Reason", placeholder="Enter the reason for banning the user...", style=discord.TextStyle.long
+            label="Ban Reason",
+            placeholder="Enter the reason for banning the user...",
+            style=discord.TextStyle.long,
         )
         self.add_item(self.reason)
 
@@ -19,15 +21,14 @@ class BanReasonModal(discord.ui.Modal):
         try:
             await self.member.ban(reason=reason)
             await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
-
             try:
                 await self.member.send(f"You've been banned from the server. Reason: {reason}")
             except discord.Forbidden:
                 guild = interaction.guild
-                staff_channel = guild.get_channel(await Config.get_conf(None, identifier=1234567890).guild(guild).questionnaire_channel())
+                staff_channel_id = await Config.get_conf(None, identifier=1234567890).guild(guild).questionnaire_channel()
+                staff_channel = guild.get_channel(staff_channel_id)
                 if staff_channel:
-                    await staff_channel.send(f"Failed to reach <@{self.member.id}>'s DMs before banning.")
-
+                    await staff_channel.send(f"Failed to DM <@{self.member.id}> before banning.")
         except discord.Forbidden:
             await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
         except discord.HTTPException:
@@ -44,6 +45,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "suspicious_users": {},
             "test_mode": False,
             "user_responses": {},
+            "cooldowns": {}
         }
         self.config.register_guild(**default_guild)
 
@@ -70,7 +72,7 @@ class SuspiciousUserMonitor(commands.Cog):
             embed = discord.Embed(
                 title="Suspicious Account Alert",
                 description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
-                color=discord.Color.red()
+                color=discord.Color.red(),
             )
             embed.add_field(name="User ID", value=f"<@{member.id}>", inline=True)
             embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
@@ -79,18 +81,24 @@ class SuspiciousUserMonitor(commands.Cog):
             view = discord.ui.View(timeout=600)
 
             mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
+
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
-                    await member.remove_roles(*[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)], reason="Marked as suspicious")
-
+                    await member.remove_roles(
+                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                        reason="Marked as suspicious",
+                    )
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        await member.send(
-                            "You have been marked as suspicious. Please respond to the questionnaire sent to you."
-                        )
+                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord, please answer the questionnaire I've provided.\n\n"
+                                          "1. How did you find A New Beginning?\n"
+                                          "2. IF by a friend/source (What source did you use?)\n"
+                                          "3. IF by a friend, what was their name? (Discord, VRC, Etc)\n"
+                                          "4. IF you've had a previous Discord account what was your Previous Discord Account?\n\n"
+                                          "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
@@ -101,18 +109,20 @@ class SuspiciousUserMonitor(commands.Cog):
             mark_suspicious_button.callback = mark_suspicious
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
 
                     await member.remove_roles(suspicious_role, reason="Verified as safe")
-                    await member.add_roles(*[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)], reason="Verified as safe")
+                    await member.add_roles(
+                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                        reason="Verified as safe",
+                    )
 
                     try:
-                        await member.send(
-                            "**Approved**\nThank you for your confirmation. Your roles have been restored."
-                        )
+                        await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
                     except discord.Forbidden:
                         pass
 
@@ -132,23 +142,31 @@ class SuspiciousUserMonitor(commands.Cog):
         if not isinstance(message.channel, discord.DMChannel) or message.author.bot:
             return
 
-        guild = self.bot.get_guild(988099809124708383)  
+        guild = self.bot.get_guild(988099809124708383)
         settings = await self.config.guild(guild).all()
         alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
         if str(message.author.id) in settings["suspicious_users"]:
-            if message.author.id in settings["user_responses"]:
-                await message.author.send("You have already submitted your response.")
-                return
+            async with self.config.guild(guild).cooldowns() as cooldowns:
+                if str(message.author.id) in cooldowns:
+                    last_message_time = datetime.fromisoformat(cooldowns[str(message.author.id)])
+                    if datetime.now() - last_message_time < timedelta(seconds=10):
+                        await message.author.send("Please wait 10 seconds before sending another response.")
+                        return
+                cooldowns[str(message.author.id)] = datetime.now().isoformat()
 
             async with self.config.guild(guild).user_responses() as user_responses:
+                if str(message.author.id) in user_responses:
+                    await message.author.send("You have already submitted your response.")
+                    return
+
                 user_responses[str(message.author.id)] = message.content
 
             if alert_channel:
                 embed = discord.Embed(
                     title="Suspicious User Response",
                     description=message.content,
-                    color=discord.Color.blue()
+                    color=discord.Color.blue(),
                 )
                 embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
                 embed.add_field(name="User ID", value=f"<@{message.author.id}> ({message.author.id})", inline=False)
@@ -159,12 +177,6 @@ class SuspiciousUserMonitor(commands.Cog):
                     if interaction.user.guild_permissions.ban_members:
                         member = interaction.guild.get_member(message.author.id)
                         if member:
-                            try:
-                                await member.send(f"You are being banned for the following reason: {message.content}")
-                            except discord.Forbidden:
-                                if alert_channel:
-                                    await alert_channel.send(f"Failed to DM <@{message.author.id}> before banning.")
-
                             await interaction.response.send_modal(BanReasonModal(member))
                         else:
                             await interaction.response.send_message("User is no longer a member of the server.", ephemeral=True)
@@ -191,7 +203,7 @@ class SuspiciousUserMonitor(commands.Cog):
         embed = discord.Embed(
             title="Suspicious Monitor Commands",
             description=description,
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
         await ctx.send(embed=embed)
 
