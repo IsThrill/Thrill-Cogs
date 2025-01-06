@@ -93,11 +93,11 @@ class SuspiciousUserMonitor(commands.Cog):
                         suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord, please answer the questionnaire I've provided.\n\n"
+                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
                                           "1. How did you find A New Beginning?\n"
-                                          "2. IF by a friend/source (What source did you use?)\n"
-                                          "3. IF by a friend, what was their name? (Discord, VRC, Etc)\n"
-                                          "4. IF you've had a previous Discord account what was your Previous Discord Account?\n\n"
+                                          "2. If by a friend/source (What source did you use?)\n"
+                                          "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
+                                          "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
                                           "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
@@ -186,6 +186,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
                 await message.author.send("Your response has been submitted.")
 
+                
     @commands.group(name="sus", invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
     async def suspiciousmonitor(self, ctx):
@@ -229,3 +230,16 @@ class SuspiciousUserMonitor(commands.Cog):
         await self.config.guild(ctx.guild).test_mode.set(test_mode)
         status = "enabled" if test_mode else "disabled"
         await ctx.send(f"Test mode {status}.")
+
+    @commands.command(name="clearresponse")
+    @commands.has_permissions(administrator=True)
+    async def clear_response(self, ctx, user: discord.User):
+        """
+        Clear a specific user's response so they can resubmit.
+        """
+        async with self.config.guild(ctx.guild).user_responses() as user_responses:
+            if str(user.id) in user_responses:
+                del user_responses[str(user.id)]
+                await ctx.send(f"Response for {user} has been cleared. They can now resubmit.")
+            else:
+                await ctx.send(f"No response found for {user}.")
