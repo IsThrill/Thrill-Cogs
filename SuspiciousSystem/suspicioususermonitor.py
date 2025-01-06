@@ -20,16 +20,21 @@ class BanReasonModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         reason = self.reason.value
         try:
-            await self.member.ban(reason=reason)
-            await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+            # First, try to DM the user with the ban reason
             try:
                 await self.member.send(f"You've been banned from the server. Reason: {reason}")
             except discord.Forbidden:
+                # If DM fails, report to the staff channel and proceed with banning
                 guild = interaction.guild
                 staff_channel_id = await Config.get_conf(None, identifier=1234567890).guild(guild).questionnaire_channel()
                 staff_channel = guild.get_channel(staff_channel_id)
                 if staff_channel:
-                    await staff_channel.send(f"Failed to DM <@{self.member.id}> before banning.")
+                    await staff_channel.send(f"Failed to DM <@{self.member.id}> the ban reason. Proceeding with the ban.")
+
+            # Perform the ban after handling the DM
+            await self.member.ban(reason=reason)
+            await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
+
         except discord.Forbidden:
             await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
         except discord.HTTPException:
@@ -186,7 +191,6 @@ class SuspiciousUserMonitor(commands.Cog):
 
                 await message.author.send("Your response has been submitted.")
 
-                
     @commands.group(name="sus", invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
     async def suspiciousmonitor(self, ctx):
@@ -195,6 +199,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus setstaff": "Set the staff role to ping.",
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
+            "sus clearresponse": "Clear a user's response so they can resubmit.",
         }
         description = "\n".join([f"`{cmd}`: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
@@ -231,9 +236,9 @@ class SuspiciousUserMonitor(commands.Cog):
         status = "enabled" if test_mode else "disabled"
         await ctx.send(f"Test mode {status}.")
 
-    @commands.command(name="clearresponse")
+    @suspiciousmonitor.command(name="clearresponse")
     @commands.has_permissions(administrator=True)
-    async def clear_response(self, ctx, user: discord.User):
+    async def clearresponse(self, ctx, user: discord.User):
         """
         Clear a specific user's response so they can resubmit.
         """
