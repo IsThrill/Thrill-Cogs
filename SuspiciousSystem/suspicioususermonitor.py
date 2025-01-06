@@ -84,6 +84,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "suspicious_users": {},
             "test_mode": False,
             "user_responses": {},
+            "account_age_threshold": 90,  # Account age threshold in days
         }
         self.config.register_guild(**default_guild)
 
@@ -95,11 +96,10 @@ class SuspiciousUserMonitor(commands.Cog):
         if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
             return
 
+        account_age_threshold = settings["account_age_threshold"]  # Use the threshold from config
         account_age = datetime.now(pytz.utc) - member.created_at if not settings["test_mode"] else timedelta(days=0)
-        est_tz = pytz.timezone("US/Eastern")
-        account_creation_est = member.created_at.astimezone(est_tz)
 
-        if account_age.days < 90 or settings["test_mode"]:
+        if account_age.days < account_age_threshold or settings["test_mode"]:
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
@@ -113,7 +113,7 @@ class SuspiciousUserMonitor(commands.Cog):
                 color=discord.Color.red(),
             )
             embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
-            embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
+            embed.add_field(name="Account Creation Date (EST)", value=member.created_at.astimezone(pytz.timezone("US/Eastern")).strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
             embed.set_thumbnail(url=member.avatar.url)
 
             view = discord.ui.View(timeout=600)
@@ -247,6 +247,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
             "sus clearresponse": "Clear a user's response so they can resubmit.",
+            "sus setage": "Set the account age threshold in days.",
         }
         description = "\n".join([f"{cmd}: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
@@ -295,3 +296,16 @@ class SuspiciousUserMonitor(commands.Cog):
                 await ctx.send(f"Response for {user} has been cleared. They can now resubmit.")
             else:
                 await ctx.send(f"No response found for {user}.")
+
+    @suspiciousmonitor.command(name="setage")
+    @commands.has_permissions(administrator=True)
+    async def set_age(self, ctx, age: int):
+        """
+        Set the account age threshold (in days) for marking a user as suspicious.
+        """
+        if age < 1:
+            await ctx.send("The account age threshold must be at least 1 day.")
+            return
+        
+        await self.config.guild(ctx.guild).account_age_threshold.set(age)
+        await ctx.send(f"Account age threshold set to {age} days.")
