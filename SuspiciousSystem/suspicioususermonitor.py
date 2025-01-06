@@ -243,6 +243,7 @@ class SuspiciousUserMonitor(commands.Cog):
     async def suspiciousmonitor(self, ctx):
         commands_list = {
             "sus setrole": "Set the suspicious role.",
+            "sus config": "Shows the servers current configuration",
             "sus setstaff": "Set the staff role to ping.",
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
@@ -256,6 +257,32 @@ class SuspiciousUserMonitor(commands.Cog):
             color=discord.Color.blue(),
         )
         await ctx.send(embed=embed)
+
+@suspiciousmonitor.command(name="config")
+@commands.has_permissions(administrator=True)
+async def config(self, ctx):
+    """
+    Show the current server's configuration.
+    """
+    settings = await self.config.guild(ctx.guild).all()
+
+    suspicious_role = ctx.guild.get_role(settings["suspicious_role"]) if settings["suspicious_role"] else "None"
+    staff_role = ctx.guild.get_role(settings["staff_role"]) if settings["staff_role"] else "None"
+    questionnaire_channel = ctx.guild.get_channel(settings["questionnaire_channel"]) if settings["questionnaire_channel"] else "None"
+    min_account_age = settings["min_account_age"]
+    test_mode = "Enabled" if settings["test_mode"] else "Disabled"
+
+    embed = discord.Embed(
+        title="Current Server Configuration",
+        color=discord.Color.green(),
+    )
+    embed.add_field(name="Suspicious Role", value=suspicious_role, inline=False)
+    embed.add_field(name="Staff Role", value=staff_role, inline=False)
+    embed.add_field(name="Questionnaire Channel", value=questionnaire_channel, inline=False)
+    embed.add_field(name="Minimum Account Age", value=f"{min_account_age} days", inline=False)
+    embed.add_field(name="Test Mode", value=test_mode, inline=False)
+
+    await ctx.send(embed=embed)
 
     @suspiciousmonitor.command(name="setrole")
     @commands.has_permissions(administrator=True)
