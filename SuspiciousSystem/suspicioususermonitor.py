@@ -1,4 +1,5 @@
 import discord
+from discord.ui import Modal, TextInput, Button, View
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box
@@ -20,18 +21,15 @@ class BanReasonModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         reason = self.reason.value
         try:
-            # First, try to DM the user with the ban reason
             try:
                 await self.member.send(f"You've been banned from the server. Reason: {reason}")
             except discord.Forbidden:
-                # If DM fails, report to the staff channel and proceed with banning
                 guild = interaction.guild
                 staff_channel_id = await Config.get_conf(None, identifier=1234567890).guild(guild).questionnaire_channel()
                 staff_channel = guild.get_channel(staff_channel_id)
                 if staff_channel:
                     await staff_channel.send(f"Failed to DM <@{self.member.id}> the ban reason. Proceeding with the ban.")
-
-            # Perform the ban after handling the DM
+            
             await self.member.ban(reason=reason)
             await interaction.response.send_message(f"User {self.member} has been banned for: {reason}", ephemeral=True)
 
@@ -39,6 +37,34 @@ class BanReasonModal(discord.ui.Modal):
             await interaction.response.send_message("I do not have permission to ban this user.", ephemeral=True)
         except discord.HTTPException:
             await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
+
+class StaffReplyModal(Modal):
+    def __init__(self, member: discord.Member):
+        super().__init__(title="Staff Reply")
+        self.member = member
+        self.reply = TextInput(
+            label="Your Reply",
+            placeholder="Enter your reply to the user...",
+            style=discord.TextStyle.long,
+        )
+        self.add_item(self.reply)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        reply_content = self.reply.value
+        try:
+            # Send the reply to the user
+            await self.member.send(f"**Staff Reply:** {reply_content}")
+            await interaction.response.send_message(f"Staff reply sent to {self.member}.", ephemeral=True)
+            
+            # Clear previous response so the user can resubmit
+            guild = interaction.guild
+            settings = await Config.get_conf(None, identifier=1234567890).guild(guild).all()
+            async with self.config.guild(guild).user_responses() as user_responses:
+                if str(self.member.id) in user_responses:
+                    del user_responses[str(self.member.id)]
+                    
+        except discord.Forbidden:
+            await interaction.response.send_message("Unable to send a reply. The user has DMs disabled.", ephemeral=True)
 
 class SuspiciousUserMonitor(commands.Cog):
     def __init__(self, bot: Red):
@@ -85,7 +111,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             view = discord.ui.View(timeout=600)
 
-            mark_suspicious_button = discord.ui.Button(label="Mark Sus", style=discord.ButtonStyle.danger)
+            mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
 
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
@@ -98,79 +124,12 @@ class SuspiciousUserMonitor(commands.Cog):
                         suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        # New DM message with the "Verify" button
-                        verify_button = discord.ui.Button(label="Verify", style=discord.ButtonStyle.success)
-
-                        async def verify_response(interaction: discord.Interaction):
-                            modal = discord.ui.Modal(
-                                title="Suspicious Account Questionnaire"
-                            )
-
-                            question1 = discord.ui.TextInput(
-                                label="How did you find ANB?",
-                                placeholder="Answer here...",
-                                style=discord.TextStyle.long,
-                            )
-                            modal.add_item(question1)
-
-                            question2 = discord.ui.TextInput(
-                                label="By friend? Name?",
-                                placeholder="Answer here...",
-                                style=discord.TextStyle.long,
-                            )
-                            modal.add_item(question2)
-
-                            question3 = discord.ui.TextInput(
-                                label="By source? What source?",
-                                placeholder="Answer here...",
-                                style=discord.TextStyle.long,
-                            )
-                            modal.add_item(question3)
-
-                            question4 = discord.ui.TextInput(
-                                label="Previous account?",
-                                placeholder="Answer here...",
-                                style=discord.TextStyle.long,
-                            )
-                            modal.add_item(question4)
-
-                            async def on_submit(modal_interaction: discord.Interaction):
-                                user_responses = {
-                                    "How did you find ANB?": question1.value,
-                                    "By friend? Name?": question2.value,
-                                    "By source? What source?": question3.value,
-                                    "Previous account?": question4.value,
-                                }
-
-                                # Send the responses to the staff channel
-                                alert_channel = guild.get_channel(settings["questionnaire_channel"])
-                                if alert_channel:
-                                    embed = discord.Embed(
-                                        title="Suspicious User Response",
-                                        description="Here are the user's answers:",
-                                        color=discord.Color.blue(),
-                                    )
-                                    for q, a in user_responses.items():
-                                        embed.add_field(name=q, value=a, inline=False)
-
-                                    staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
-                                    await alert_channel.send(content=staff_ping, embed=embed)
-
-                                await interaction.response.send_message("Your responses have been submitted for review.", ephemeral=True)
-
-                            modal.on_submit = on_submit
-                            await interaction.response.send_modal(modal)
-
-                        verify_button.callback = verify_response
-
-                        await member.send(
-                            "Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please click the button below."
-                        )
-
-                        view = discord.ui.View()
-                        view.add_item(verify_button)
-                        await member.send(view=view)
-
+                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
+                                          "1. How did you find A New Beginning?\n"
+                                          "2. If by a friend/source (What source did you use?)\n"
+                                          "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
+                                          "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
+                                          "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
@@ -180,7 +139,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             mark_suspicious_button.callback = mark_suspicious
 
-            verify_safe_button = discord.ui.Button(label="Verify Safe", style=discord.ButtonStyle.success)
+            verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
@@ -207,7 +166,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
+                staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
                 await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
     @commands.Cog.listener()
@@ -224,7 +183,7 @@ class SuspiciousUserMonitor(commands.Cog):
             async with self.config.guild(guild).user_responses() as user_responses:
                 if str(message.author.id) in user_responses:
                     await message.author.send("You have already submitted your response.")
-                    return  # Prevent further submission.
+                    return  
 
                 # Store the first response.
                 user_responses[str(message.author.id)] = message.content
@@ -238,20 +197,34 @@ class SuspiciousUserMonitor(commands.Cog):
                     embed.set_author(name=str(message.author), icon_url=message.author.avatar.url)
                     embed.add_field(name="User ID", value=box(str(message.author.id)), inline=False)
 
-                    ban_button = discord.ui.Button(label="Ban", style=discord.ButtonStyle.danger)
+                    ban_button = Button(label="Ban User", style=discord.ButtonStyle.danger)
+                    staff_reply_button = Button(label="Staff Reply", style=discord.ButtonStyle.primary)
 
+                    # Ban user callback
                     async def ban_user(interaction: discord.Interaction):
                         if interaction.user.guild_permissions.ban_members:
                             member = interaction.guild.get_member(message.author.id)
                             if member:
                                 await interaction.response.send_modal(BanReasonModal(member))
                             else:
-                                await interaction.response.send_message("User is no longer a member of the server.", ephemeral=True)
+                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
                     ban_button.callback = ban_user
 
-                    view = discord.ui.View()
+                    # Staff reply callback
+                    async def staff_reply(interaction: discord.Interaction):
+                        if interaction.user.guild_permissions.manage_roles:
+                            member = interaction.guild.get_member(message.author.id)
+                            if member:
+                                await interaction.response.send_modal(StaffReplyModal(member))
+                            else:
+                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
+
+                    staff_reply_button.callback = staff_reply
+
+                    view = View()
                     view.add_item(ban_button)
+                    view.add_item(staff_reply_button)
 
                     staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
                     await alert_channel.send(content=staff_ping, embed=embed, view=view)
