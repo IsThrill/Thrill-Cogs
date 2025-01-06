@@ -40,6 +40,50 @@ class BanReasonModal(discord.ui.Modal):
         except discord.HTTPException:
             await interaction.response.send_message("Failed to ban the user.", ephemeral=True)
 
+class VerificationModal(discord.ui.Modal):
+    def __init__(self, member: discord.Member, bot: Red):
+        super().__init__(title="Verification Questions")
+        self.member = member
+        self.bot = bot
+
+        # Adding the questions as TextInput fields
+        self.question_1 = discord.ui.TextInput(label="How did you find A New Beginning?", style=discord.TextStyle.long)
+        self.question_2 = discord.ui.TextInput(label="If by a friend/source, what source?", style=discord.TextStyle.long)
+        self.question_3 = discord.ui.TextInput(label="If by a friend, what was their name?", style=discord.TextStyle.long)
+        self.question_4 = discord.ui.TextInput(label="If you've had a previous Discord account, what was your previous account?", style=discord.TextStyle.long)
+        
+        self.add_item(self.question_1)
+        self.add_item(self.question_2)
+        self.add_item(self.question_3)
+        self.add_item(self.question_4)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Collect responses
+        responses = {
+            "How did you find A New Beginning?": self.question_1.value,
+            "If by a friend/source, what source?": self.question_2.value,
+            "If by a friend, what was their name?": self.question_3.value,
+            "If you've had a previous Discord account, what was your previous account?": self.question_4.value,
+        }
+        
+        # Send the responses to the staff channel
+        guild = interaction.guild
+        settings = await self.bot.get_cog('SuspiciousUserMonitor').config.guild(guild).all()
+        alert_channel = guild.get_channel(settings["questionnaire_channel"])
+
+        embed = discord.Embed(
+            title=f"Suspicious User Response from {self.member}",
+            color=discord.Color.blue(),
+        )
+        for question, response in responses.items():
+            embed.add_field(name=question, value=response, inline=False)
+        
+        if alert_channel:
+            await alert_channel.send(embed=embed)
+
+        # Acknowledge the user
+        await interaction.response.send_message("Thank you for your response. Your information has been sent to the staff.", ephemeral=True)
+
 class SuspiciousUserMonitor(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
@@ -98,12 +142,20 @@ class SuspiciousUserMonitor(commands.Cog):
                         suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
-                                          "1. How did you find A New Beginning?\n"
-                                          "2. If by a friend/source (What source did you use?)\n"
-                                          "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
-                                          "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
-                                          "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
+                        # Send interactive message to the user
+                        verification_button = discord.ui.Button(label="Verification", style=discord.ButtonStyle.success)
+
+                        async def verify_user(interaction: discord.Interaction):
+                            # Send the modal for verification questions
+                            await interaction.response.send_modal(VerificationModal(member, self.bot))
+
+                        verification_button.callback = verify_user
+
+                        dm_message = await member.send(
+                            "Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please click the button below."
+                        )
+                        view.add_item(verification_button)
+                        await dm_message.edit(content="Hey there, you've been automatically assigned and put into a suspicious category. Please click below to verify.", view=view)
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
