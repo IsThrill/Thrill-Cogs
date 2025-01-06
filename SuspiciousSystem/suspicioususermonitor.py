@@ -171,7 +171,7 @@ class SuspiciousUserMonitor(commands.Cog):
             view.add_item(verify_safe_button)
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
-            if alert_channel and not settings["test_mode"]:
+            if alert_channel:
 
                 if not settings["test_mode"]:
                     everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
