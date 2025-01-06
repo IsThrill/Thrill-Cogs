@@ -84,7 +84,6 @@ class SuspiciousUserMonitor(commands.Cog):
             "suspicious_users": {},
             "test_mode": False,
             "user_responses": {},
-            "account_age_threshold": 90,  # Account age threshold in days
         }
         self.config.register_guild(**default_guild)
 
@@ -96,10 +95,11 @@ class SuspiciousUserMonitor(commands.Cog):
         if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
             return
 
-        account_age_threshold = settings["account_age_threshold"]  # Use the threshold from config
         account_age = datetime.now(pytz.utc) - member.created_at if not settings["test_mode"] else timedelta(days=0)
+        est_tz = pytz.timezone("US/Eastern")
+        account_creation_est = member.created_at.astimezone(est_tz)
 
-        if account_age.days < account_age_threshold or settings["test_mode"]:
+        if account_age.days < 90 or settings["test_mode"]:
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
@@ -113,7 +113,7 @@ class SuspiciousUserMonitor(commands.Cog):
                 color=discord.Color.red(),
             )
             embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
-            embed.add_field(name="Account Creation Date (EST)", value=member.created_at.astimezone(pytz.timezone("US/Eastern")).strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
+            embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
             embed.set_thumbnail(url=member.avatar.url)
 
             view = discord.ui.View(timeout=600)
@@ -121,27 +121,26 @@ class SuspiciousUserMonitor(commands.Cog):
             mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
 
             async def mark_suspicious(interaction: discord.Interaction):
-                m = interaction.guild.get_member(member.id)  # Fetch the Member object
-                if m and interaction.user.guild_permissions.manage_roles:
-                    await m.add_roles(suspicious_role, reason="Marked as suspicious")
-                    await m.remove_roles(
+                if interaction.user.guild_permissions.manage_roles:
+                    await member.add_roles(suspicious_role, reason="Marked as suspicious")
+                    await member.remove_roles(
                         *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
                         reason="Marked as suspicious",
                     )
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                        suspicious_users[str(m.id)] = previous_roles
+                        suspicious_users[str(member.id)] = previous_roles
 
                     try:
-                        await m.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
-                                      "1. How did you find A New Beginning?\n"
-                                      "2. If by a friend/source (What source did you use?)\n"
-                                      "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
-                                      "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
-                                      "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
+                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
+                                          "1. How did you find A New Beginning?\n"
+                                          "2. If by a friend/source (What source did you use?)\n"
+                                          "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
+                                          "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
+                                          "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
                     except discord.Forbidden:
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
-                            await staff_channel.send(f"Failed to send a DM to <@{m.id}>.")
+                            await staff_channel.send(f"Failed to send a DM to <@{member.id}>.")
 
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
 
@@ -150,19 +149,18 @@ class SuspiciousUserMonitor(commands.Cog):
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
             async def verify_safe(interaction: discord.Interaction):
-                m = interaction.guild.get_member(member.id)  # Fetch the Member object
-                if m and interaction.user.guild_permissions.manage_roles:
+                if interaction.user.guild_permissions.manage_roles:
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                        previous_roles = suspicious_users.pop(str(m.id), [])
+                        previous_roles = suspicious_users.pop(str(member.id), [])
 
-                    await m.remove_roles(suspicious_role, reason="Verified as safe")
-                    await m.add_roles(
+                    await member.remove_roles(suspicious_role, reason="Verified as safe")
+                    await member.add_roles(
                         *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
                         reason="Verified as safe",
                     )
 
                     try:
-                        await m.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
+                        await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
                     except discord.Forbidden:
                         pass
 
@@ -211,21 +209,23 @@ class SuspiciousUserMonitor(commands.Cog):
 
                     # Ban user callback
                     async def ban_user(interaction: discord.Interaction):
-                        m = interaction.guild.get_member(message.author.id)  # Fetch the Member object
-                        if m and interaction.user.guild_permissions.ban_members:
-                            await interaction.response.send_modal(BanReasonModal(m))
-                        else:
-                            await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
+                        if interaction.user.guild_permissions.ban_members:
+                            member = interaction.guild.get_member(message.author.id)
+                            if member:
+                                await interaction.response.send_modal(BanReasonModal(member))
+                            else:
+                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
                     ban_button.callback = ban_user
 
                     # Staff reply callback
                     async def staff_reply(interaction: discord.Interaction):
-                        m = interaction.guild.get_member(message.author.id)  # Fetch the Member object
-                        if m and interaction.user.guild_permissions.manage_roles:
-                            await interaction.response.send_modal(StaffReplyModal(m, self.config))  # Pass config here
-                        else:
-                            await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
+                        if interaction.user.guild_permissions.manage_roles:
+                            member = interaction.guild.get_member(message.author.id)
+                            if member:
+                                await interaction.response.send_modal(StaffReplyModal(member, self.config))  # Pass config here
+                            else:
+                                await interaction.response.send_message("User is no longer a member of the server or hasn't finished onboarding.", ephemeral=True)
 
                     staff_reply_button.callback = staff_reply
 
@@ -247,7 +247,6 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
             "sus clearresponse": "Clear a user's response so they can resubmit.",
-            "sus setage": "Set the account age threshold in days.",
         }
         description = "\n".join([f"{cmd}: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
@@ -296,16 +295,3 @@ class SuspiciousUserMonitor(commands.Cog):
                 await ctx.send(f"Response for {user} has been cleared. They can now resubmit.")
             else:
                 await ctx.send(f"No response found for {user}.")
-
-    @suspiciousmonitor.command(name="setage")
-    @commands.has_permissions(administrator=True)
-    async def set_age(self, ctx, age: int):
-        """
-        Set the account age threshold (in days) for marking a user as suspicious.
-        """
-        if age < 1:
-            await ctx.send("The account age threshold must be at least 1 day.")
-            return
-        
-        await self.config.guild(ctx.guild).account_age_threshold.set(age)
-        await ctx.send(f"Account age threshold set to {age} days.")
