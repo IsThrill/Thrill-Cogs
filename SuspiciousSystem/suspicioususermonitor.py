@@ -253,7 +253,7 @@ class SuspiciousUserMonitor(commands.Cog):
             "sus test": "Toggle test mode.",
             "sus clearresponse": "Clear a user's response so they can resubmit.",
         }
-        description = "\n".join([f"`{cmd}`: {desc}" for cmd, desc in commands_list.items()])
+        description = "\n".join([f"{cmd}: {desc}" for cmd, desc in commands_list.items()])
         embed = discord.Embed(
             title="Suspicious Monitor Commands",
             description=description,
