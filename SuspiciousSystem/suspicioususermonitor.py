@@ -197,8 +197,9 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                staff_ping = "<@everyone>" if not settings["test_mode"] else ""
-                await alert_channel.send(content=staff_ping, embed=embed, view=view)
+                staff_ping = "@everyone" if not settings["test_mode"] else ""
+                await alert_channel.send(content=staff_ping, embed=embed, view=view, allowed_mentions=discord.AllowedMentions(everyone=True))
+
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
