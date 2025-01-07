@@ -149,8 +149,6 @@ class SuspiciousUserMonitor(commands.Cog):
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
-verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
-
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     # Check if the member has the suspicious role
