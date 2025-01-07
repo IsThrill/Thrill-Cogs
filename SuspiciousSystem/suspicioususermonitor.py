@@ -149,10 +149,11 @@ class SuspiciousUserMonitor(commands.Cog):
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
+
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
-                    # Get the member from the guild using the message author ID
-                    member = interaction.guild.get_member(message.author.id)
+                    # Get the member from the guild using the interaction's user ID
+                    member = interaction.guild.get_member(interaction.user.id)
                     
                     if not member:
                         await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
@@ -162,7 +163,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
                     
                     if suspicious_role not in member.roles:
-
+                        # Deny action if the user is not marked as suspicious
                         await interaction.response.send_message("The user has already been verified as safe or has not been marked as suspicious.", ephemeral=True)
                         return
                     
