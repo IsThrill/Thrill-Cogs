@@ -149,23 +149,29 @@ class SuspiciousUserMonitor(commands.Cog):
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
             
-            async def verify_safe(interaction: discord.Interaction):
-                if interaction.user.guild_permissions.manage_roles:
-                    async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                        previous_roles = suspicious_users.pop(str(member.id), [])
+    async def verify_safe(interaction: discord.Interaction):
+        if interaction.user.guild_permissions.manage_roles:
+            async with self.config.guild(guild).suspicious_users() as suspicious_users:
+                # Check if the user is marked as suspicious
+                if str(member.id) not in suspicious_users:
+                    await interaction.response.send_message("This user hasn't been marked as suspicious.", ephemeral=True)
+                    return
+    
+                # Proceed with the removal of the suspicious role and restoration of previous roles
+                previous_roles = suspicious_users.pop(str(member.id), [])
+                await member.remove_roles(suspicious_role, reason="Verified as safe")
+                await member.add_roles(
+                    *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                    reason="Verified as safe",
+                )
+    
+                try:
+                    await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
+                except discord.Forbidden:
+                    pass
+    
+                await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
-                    await member.remove_roles(suspicious_role, reason="Verified as safe")
-                    await member.add_roles(
-                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
-                        reason="Verified as safe",
-                    )
-
-                    try:
-                        await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
-                    except discord.Forbidden:
-                        pass
-
-                    await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
 
