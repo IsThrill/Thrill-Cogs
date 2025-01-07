@@ -92,7 +92,7 @@ class SuspiciousUserMonitor(commands.Cog):
         guild = member.guild
         settings = await self.config.guild(guild).all()
 
-        if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
+        if not (settings["suspicious_role"] and settings["questionnaire_channel"]):
             return
 
         account_age = datetime.now(pytz.utc) - member.created_at if not settings["test_mode"] else timedelta(days=0)
@@ -100,9 +100,8 @@ class SuspiciousUserMonitor(commands.Cog):
         account_creation_est = member.created_at.astimezone(est_tz)
 
         if account_age.days < settings["min_account_age"] or settings["test_mode"]:
-            staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
-            if not (staff_role and suspicious_role):
+            if not (suspicious_role):
                 return
 
             previous_roles = [role.id for role in member.roles if role != guild.default_role]
@@ -291,7 +290,6 @@ class SuspiciousUserMonitor(commands.Cog):
         settings = await self.config.guild(ctx.guild).all()
 
         suspicious_role = ctx.guild.get_role(settings["suspicious_role"]) if settings["suspicious_role"] else "None"
-        staff_role = ctx.guild.get_role(settings["staff_role"]) if settings["staff_role"] else "None"
         questionnaire_channel = ctx.guild.get_channel(settings["questionnaire_channel"]) if settings["questionnaire_channel"] else "None"
         min_account_age = settings["min_account_age"]
         test_mode = "Enabled" if settings["test_mode"] else "Disabled"
@@ -301,7 +299,6 @@ class SuspiciousUserMonitor(commands.Cog):
             color=discord.Color.green(),
         )
         embed.add_field(name="Suspicious Role", value=suspicious_role, inline=False)
-        embed.add_field(name="Staff Role", value=staff_role, inline=False)
         embed.add_field(name="Questionnaire Channel", value=questionnaire_channel, inline=False)
         embed.add_field(name="Minimum Account Age", value=f"{min_account_age} days", inline=False)
         embed.add_field(name="Test Mode", value=test_mode, inline=False)
