@@ -148,11 +148,11 @@ class SuspiciousUserMonitor(commands.Cog):
             mark_suspicious_button.callback = mark_suspicious
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
-
+            
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
-                    # Get the suspicious member from the interaction (not the staff member)
-                    target_member = interaction.guild.get_member(message.author.id)  # Corrected target member
+                    # Get the suspicious member from the interaction view context, not the staff member
+                    target_member = interaction.guild.get_member(interaction.message.author.id)  # Corrected target member
             
                     if not target_member:
                         await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
