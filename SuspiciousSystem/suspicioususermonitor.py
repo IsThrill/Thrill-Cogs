@@ -149,14 +149,16 @@ class SuspiciousUserMonitor(commands.Cog):
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
             
+verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+
             async def verify_safe(interaction: discord.Interaction):
                 guild = interaction.guild
-            
+                
                 # Ensure the user has the appropriate permissions
                 if not interaction.user.guild_permissions.manage_roles:
                     await interaction.response.send_message("You do not have permission to verify this user.", ephemeral=True)
                     return
-            
+                
                 # Retrieve settings and roles
                 settings = await self.config.guild(guild).all()
                 suspicious_role = guild.get_role(settings["suspicious_role"])
@@ -164,18 +166,10 @@ class SuspiciousUserMonitor(commands.Cog):
                     await interaction.response.send_message("Suspicious role not configured correctly.", ephemeral=True)
                     return
             
-                # Get the custom_id and attempt to parse the user ID
-                custom_id = interaction.data.get("custom_id", "")
-                try:
-                    user_id = int(custom_id)
-                except ValueError:
-                    await interaction.response.send_message("Invalid custom ID format.", ephemeral=True)
-                    return
-            
-                # Get the member from the user ID
-                member = guild.get_member(user_id)
-                if not member:
-                    await interaction.response.send_message("Could not find the user in the server.", ephemeral=True)
+                # Ensure the member being flagged has the suspicious role
+                member = interaction.message.mentions[0]  # Assuming the member is mentioned in the alert message
+                if not member or suspicious_role not in member.roles:
+                    await interaction.response.send_message("This user does not have the suspicious role.", ephemeral=True)
                     return
             
                 # Access the suspicious users config
@@ -201,8 +195,9 @@ class SuspiciousUserMonitor(commands.Cog):
             
                 # Send confirmation to the interaction channel
                 await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
-
+            
             verify_safe_button.callback = verify_safe
+
 
             view.add_item(mark_suspicious_button)
             view.add_item(verify_safe_button)
