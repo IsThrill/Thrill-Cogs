@@ -196,7 +196,7 @@ async def verify_safe(interaction: discord.Interaction):
     # Send confirmation to the interaction channel
     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
             
-        verify_safe_button.callback = verify_safe
+    verify_safe_button.callback = verify_safe
 
             view.add_item(mark_suspicious_button)
             view.add_item(verify_safe_button)
