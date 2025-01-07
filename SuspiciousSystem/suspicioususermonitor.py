@@ -86,67 +86,67 @@ class SuspiciousUserMonitor(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-@commands.Cog.listener()
-async def on_member_join(self, member: discord.Member):
-    guild = member.guild
-    settings = await self.config.guild(guild).all()
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        guild = member.guild
+        settings = await self.config.guild(guild).all()
 
-    if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
-        return
-
-    account_age = datetime.now(pytz.utc) - member.created_at if not settings["test_mode"] else timedelta(days=0)
-    est_tz = pytz.timezone("US/Eastern")
-    account_creation_est = member.created_at.astimezone(est_tz)
-
-    if account_age.days < settings["min_account_age"] or settings["test_mode"]:
-        staff_role = guild.get_role(settings["staff_role"])
-        suspicious_role = guild.get_role(settings["suspicious_role"])
-        if not (staff_role and suspicious_role):
+        if not (settings["suspicious_role"] and settings["staff_role"] and settings["questionnaire_channel"]):
             return
 
-        previous_roles = [role.id for role in member.roles if role != guild.default_role]
+        account_age = datetime.now(pytz.utc) - member.created_at if not settings["test_mode"] else timedelta(days=0)
+        est_tz = pytz.timezone("US/Eastern")
+        account_creation_est = member.created_at.astimezone(est_tz)
 
-        embed = discord.Embed(
-            title="Suspicious Account Alert",
-            description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
-            color=discord.Color.red(),
-        )
-        embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
-        embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
-        embed.set_thumbnail(url=member.avatar.url)
+        if account_age.days < settings["min_account_age"] or settings["test_mode"]:
+            staff_role = guild.get_role(settings["staff_role"])
+            suspicious_role = guild.get_role(settings["suspicious_role"])
+            if not (staff_role and suspicious_role):
+                return
 
-        view = discord.ui.View(timeout=600)
+            previous_roles = [role.id for role in member.roles if role != guild.default_role]
 
-        mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
+            embed = discord.Embed(
+                title="Suspicious Account Alert",
+                description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
+                color=discord.Color.red(),
+            )
+            embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
+            embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
+            embed.set_thumbnail(url=member.avatar.url)
 
-        async def mark_suspicious(interaction: discord.Interaction):
-            if interaction.user.guild_permissions.manage_roles:
-                await member.add_roles(suspicious_role, reason="Marked as suspicious")
-                await member.remove_roles(
-                    *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
-                    reason="Marked as suspicious",
-                )
-                async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                    suspicious_users[str(member.id)] = previous_roles
+            view = discord.ui.View(timeout=600)
 
-                try:
-                    await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
-                                      "1. How did you find A New Beginning?\n"
-                                      "2. If by a friend/source (What source did you use?)\n"
-                                      "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
-                                      "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
-                                      "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
-                except discord.Forbidden:
-                    staff_channel = guild.get_channel(settings["questionnaire_channel"])
-                    if staff_channel:
-                        await staff_channel.send(f"Failed to send a DM to <@{member.id}>.")
+            mark_suspicious_button = discord.ui.Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
 
-                await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
+            async def mark_suspicious(interaction: discord.Interaction):
+                if interaction.user.guild_permissions.manage_roles:
+                    await member.add_roles(suspicious_role, reason="Marked as suspicious")
+                    await member.remove_roles(
+                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                        reason="Marked as suspicious",
+                    )
+                    async with self.config.guild(guild).suspicious_users() as suspicious_users:
+                        suspicious_users[str(member.id)] = previous_roles
 
-        mark_suspicious_button.callback = mark_suspicious
+                    try:
+                        await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
+                                          "1. How did you find A New Beginning?\n"
+                                          "2. If by a friend/source (What source did you use?)\n"
+                                          "3. If by a friend, what was their name? (Discord, VRC, Etc.)\n"
+                                          "4. If you've had a previous Discord account, what was your Previous Discord Account?\n\n"
+                                          "If you do not respond to these within the 10-minute deadline, you will be automatically removed from Discord.")
+                    except discord.Forbidden:
+                        staff_channel = guild.get_channel(settings["questionnaire_channel"])
+                        if staff_channel:
+                            await staff_channel.send(f"Failed to send a DM to <@{member.id}>.")
 
-        verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+                    await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
 
+            mark_suspicious_button.callback = mark_suspicious
+
+            verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+            
         async def verify_safe(interaction: discord.Interaction) -> None:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)
@@ -167,12 +167,12 @@ async def on_member_join(self, member: discord.Member):
 
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
-        verify_safe_button.callback = verify_safe
+            verify_safe_button.callback = verify_safe
 
-        view.add_item(mark_suspicious_button)
-        view.add_item(verify_safe_button)
+            view.add_item(mark_suspicious_button)
+            view.add_item(verify_safe_button)
 
-        alert_channel = guild.get_channel(settings["questionnaire_channel"])
+            alert_channel = guild.get_channel(settings["questionnaire_channel"])
 
         if alert_channel:
             await alert_channel.send(f"Suspicious account alert for {member.name} - Account Age: {account_age.days} days!")
@@ -181,8 +181,9 @@ async def on_member_join(self, member: discord.Member):
                 everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
                 await everyone_message.delete()
 
-            await alert_channel.send(f"<@&{staff_role.id}>")
-            await alert_channel.send(embed=embed, view=view)
+
+                await alert_channel.send(f"<@&{staff_role.id}>")
+                await alert_channel.send(embed=embed, view=view)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
