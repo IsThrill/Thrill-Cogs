@@ -149,51 +149,34 @@ class SuspiciousUserMonitor(commands.Cog):
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
+verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
+
             async def verify_safe(interaction: discord.Interaction):
-                # Ensure the user has the appropriate permissions
-                if not interaction.user.guild_permissions.manage_roles:
-                    await interaction.response.send_message("You do not have permission to verify this user.", ephemeral=True)
-                    return
-            
-                # Safely extract the member ID from the custom_id
-                try:
-                    member_id = int(interaction.data["custom_id"].split("_")[2])
-                except (KeyError, IndexError, ValueError):
-                    await interaction.response.send_message("An error occurred while processing this action.", ephemeral=True)
-                    return
-            
-                guild = interaction.guild
-                settings = await self.config.guild(guild).all()
-                suspicious_role = guild.get_role(settings["suspicious_role"])
-                if not suspicious_role:
-                    await interaction.response.send_message("Suspicious role not configured correctly.", ephemeral=True)
-                    return
-            
-                member = guild.get_member(member_id)
-                if not member or suspicious_role not in member.roles:
-                    await interaction.response.send_message("This user does not have the suspicious role or is no longer in the server.", ephemeral=True)
-                    return
-            
-                async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                    if str(member.id) not in suspicious_users:
-                        await interaction.response.send_message("This user hasn't been marked as suspicious.", ephemeral=True)
+                if interaction.user.guild_permissions.manage_roles:
+                    # Check if the member has the suspicious role
+                    suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
+                    
+                    if suspicious_role not in interaction.member.roles:
+                        # Deny action if the user is not marked as suspicious
+                        await interaction.response.send_message("The user has already been verified as safe or has not been marked as suspicious.", ephemeral=True)
                         return
             
-                    # Restore previous roles and remove the suspicious role
-                    previous_roles = suspicious_users.pop(str(member.id), [])
+                    # Remove the suspicious role and restore previous roles
+                    async with self.config.guild(interaction.guild).suspicious_users() as suspicious_users:
+                        previous_roles = suspicious_users.pop(str(member.id), [])
+            
                     await member.remove_roles(suspicious_role, reason="Verified as safe")
                     await member.add_roles(
-                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                        *[interaction.guild.get_role(rid) for rid in previous_roles if interaction.guild.get_role(rid)],
                         reason="Verified as safe",
                     )
             
-                try:
-                    await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
-                except discord.Forbidden:
-                    pass
+                    try:
+                        await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
+                    except discord.Forbidden:
+                        pass
             
-                await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
-
+                    await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
 
