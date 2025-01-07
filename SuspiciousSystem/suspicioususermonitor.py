@@ -42,7 +42,7 @@ class StaffReplyModal(Modal):
     def __init__(self, member: discord.Member, config: Config):
         super().__init__(title="Staff Reply")
         self.member = member
-        self.config = config  # Store the config
+        self.config = config  
         self.reply = TextInput(
             label="Your Reply",
             placeholder="Enter your reply to the user...",
@@ -151,21 +151,21 @@ class SuspiciousUserMonitor(commands.Cog):
 
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
-                    # Get the member from the guild using interaction.user.id
-                    member = interaction.guild.get_member(interaction.user.id)
+                    # Get the member from the guild using the message author ID
+                    member = interaction.guild.get_member(message.author.id)
                     
                     if not member:
                         await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
                         return
                     
-                    # Now check if the member has the suspicious role
+
                     suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
                     
                     if suspicious_role not in member.roles:
-                        # Deny action if the user is not marked as suspicious
+
                         await interaction.response.send_message("The user has already been verified as safe or has not been marked as suspicious.", ephemeral=True)
                         return
-            
+                    
                     # Remove the suspicious role and restore previous roles
                     async with self.config.guild(interaction.guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
@@ -180,7 +180,7 @@ class SuspiciousUserMonitor(commands.Cog):
                         await member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
                     except discord.Forbidden:
                         pass
-            
+                    
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
