@@ -175,7 +175,9 @@ class SuspiciousUserMonitor(commands.Cog):
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
 
-                if not settings["test_mode"]:
+                if settings["test_mode"]:
+                    await alert_channel.send(f"Suspicious account alert for {member.name} - Account Age: {account_age.days} days!")
+                else:  
                     everyone_message = await alert_channel.send(f"@everyone\n\nSuspicious account alert!")
                     await everyone_message.delete()
 
