@@ -151,15 +151,8 @@ class SuspiciousUserMonitor(commands.Cog):
 
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
-                    # Get the target member from the interaction
-                    member = interaction.guild.get_member(interaction.user.id)  # This is the staff member who pressed the button
-                    
-                    if not member:
-                        await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
-                        return
-                    
-                    # Get the member to verify
-                    target_member = interaction.guild.get_member(interaction.user.id)  # Corrected target member
+                    # Get the suspicious member from the interaction (not the staff member)
+                    target_member = interaction.guild.get_member(message.author.id)  # Corrected target member
             
                     if not target_member:
                         await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
@@ -167,7 +160,7 @@ class SuspiciousUserMonitor(commands.Cog):
             
                     # Check if the member has the suspicious role
                     suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
-                    
+            
                     if suspicious_role not in target_member.roles:
                         # Deny action if the user has not been marked as suspicious
                         await interaction.response.send_message("The user has not been marked as suspicious.", ephemeral=True)
@@ -176,20 +169,20 @@ class SuspiciousUserMonitor(commands.Cog):
                     # Proceed with verifying the user and removing the suspicious role
                     async with self.config.guild(interaction.guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(target_member.id), [])
-                    
+            
                     # Remove suspicious role and add previous roles back
                     await target_member.remove_roles(suspicious_role, reason="Verified as safe")
                     await target_member.add_roles(
                         *[interaction.guild.get_role(rid) for rid in previous_roles if interaction.guild.get_role(rid)],
                         reason="Verified as safe",
                     )
-                    
+            
                     # Try to send a direct message to the user
                     try:
                         await target_member.send("**Approved**\nThank you for your confirmation. Your roles have been restored.")
                     except discord.Forbidden:
                         pass
-                    
+            
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
 
             verify_safe_button.callback = verify_safe
