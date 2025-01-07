@@ -122,13 +122,20 @@ class SuspiciousUserMonitor(commands.Cog):
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
-                    await member.remove_roles(
-                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
-                        reason="Marked as suspicious",
-                    )
+            
+                    # Collect and store the previous roles of the member
+                    previous_roles = [role.id for role in member.roles if role != guild.default_role]
+            
+                    # Store the roles in the config for future reference
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
                         suspicious_users[str(member.id)] = previous_roles
-
+            
+                    # Remove previous roles and add the suspicious role
+                    await member.remove_roles(
+                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
+                        reason="Marked as suspicious"
+                    )
+            
                     try:
                         await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
                                           "1. How did you find A New Beginning?\n"
@@ -140,7 +147,7 @@ class SuspiciousUserMonitor(commands.Cog):
                         staff_channel = guild.get_channel(settings["questionnaire_channel"])
                         if staff_channel:
                             await staff_channel.send(f"Failed to send a DM to <@{member.id}>.")
-
+            
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
 
             mark_suspicious_button.callback = mark_suspicious
