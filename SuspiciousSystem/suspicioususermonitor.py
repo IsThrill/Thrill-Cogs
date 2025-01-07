@@ -152,7 +152,7 @@ class SuspiciousUserMonitor(commands.Cog):
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     # Retrieve the target member from the message context (the suspicious member)
-                    target_member = interaction.guild.get_member(interaction.message.author.id)  # Target member for verification
+                    target_member = interaction.guild.get_member(interaction.message.embeds[0].description.split(" ")[0][2:-1])  
             
                     if not target_member:
                         await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
