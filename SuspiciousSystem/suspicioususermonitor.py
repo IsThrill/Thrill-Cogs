@@ -148,13 +148,11 @@ class SuspiciousUserMonitor(commands.Cog):
             mark_suspicious_button.callback = mark_suspicious
 
             verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
-
-        async def verify_safe(interaction: discord.Interaction) -> None:
-            if not interaction.response.is_done():
-                await interaction.response.defer(ephemeral=True)
-            if interaction.user.guild_permissions.manage_roles:
-                async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                    previous_roles = suspicious_users.pop(str(member.id), [])
+            
+            async def verify_safe(interaction: discord.Interaction):
+                if interaction.user.guild_permissions.manage_roles:
+                    async with self.config.guild(guild).suspicious_users() as suspicious_users:
+                        previous_roles = suspicious_users.pop(str(member.id), [])
 
                     await member.remove_roles(suspicious_role, reason="Verified as safe")
                     await member.add_roles(
