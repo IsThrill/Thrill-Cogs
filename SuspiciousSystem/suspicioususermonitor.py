@@ -98,7 +98,7 @@ class SuspiciousUserMonitor(commands.Cog):
         est_tz = pytz.timezone("US/Eastern")
         account_creation_est = member.created_at.astimezone(est_tz)
 
-        if account_age.days < settings["min_account_age"]:
+        if account_age.days < settings["min_account_age"] or settings["test_mode"]:
             staff_role = guild.get_role(settings["staff_role"])
             suspicious_role = guild.get_role(settings["suspicious_role"])
             if not (staff_role and suspicious_role):
