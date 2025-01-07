@@ -121,21 +121,25 @@ class SuspiciousUserMonitor(commands.Cog):
 
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
+                    # Ensure the suspicious role exists
+                    suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
+                    if not suspicious_role:
+                        await interaction.response.send_message("Suspicious role is not set.", ephemeral=True)
+                        return
+            
+                    # Remove all roles except the default and suspicious role
+                    roles_to_remove = [role for role in member.roles if role != interaction.guild.default_role and role != suspicious_role]
+                    await member.remove_roles(*roles_to_remove, reason="Marked as suspicious")
+            
+                    # Store the previous roles in the config (optional, for later restoration)
+                    previous_roles = [role.id for role in roles_to_remove]
+                    async with self.config.guild(interaction.guild).suspicious_users() as suspicious_users:
+                        suspicious_users[str(member.id)] = previous_roles
+                    
+                    # Add the suspicious role
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
             
-                    # Collect and store the previous roles of the member
-                    previous_roles = [role.id for role in member.roles if role != guild.default_role and role.id != settings["suspicious_role"]]
-            
-                    # Store the roles in the config for future reference
-                    async with self.config.guild(guild).suspicious_users() as suspicious_users:
-                        suspicious_users[str(member.id)] = previous_roles
-            
-                    # Remove previous roles and add the suspicious role
-                    await member.remove_roles(
-                        *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
-                        reason="Marked as suspicious"
-                    )
-
+                    # Send the message and notify the user
                     try:
                         await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
                                           "1. How did you find A New Beginning?\n"
@@ -149,6 +153,7 @@ class SuspiciousUserMonitor(commands.Cog):
                             await staff_channel.send(f"Failed to send a DM to <@{member.id}>.")
             
                     await interaction.response.send_message("User marked as suspicious and notified.", ephemeral=True)
+
 
             mark_suspicious_button.callback = mark_suspicious
 
