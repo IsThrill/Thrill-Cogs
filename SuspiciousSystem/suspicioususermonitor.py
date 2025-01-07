@@ -148,9 +148,9 @@ async def on_member_join(self, member: discord.Member):
 
         verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
-        async def verify_safe(self, interaction: discord.Interaction) -> None:
-                if not interaction.response.is_done():
-                    await interaction.response.defer(ephemeral=True)
+        async def verify_safe(interaction: discord.Interaction) -> None:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
             if interaction.user.guild_permissions.manage_roles:
                 async with self.config.guild(guild).suspicious_users() as suspicious_users:
                     previous_roles = suspicious_users.pop(str(member.id), [])
