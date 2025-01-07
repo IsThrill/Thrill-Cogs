@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import pytz
 
 class SuspiciousUserMonitor(commands.Cog):
-    def init(self, bot: Red):
+    def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         default_guild = {
