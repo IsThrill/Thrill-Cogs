@@ -155,6 +155,13 @@ class SuspiciousUserMonitor(commands.Cog):
                     await interaction.response.send_message("You do not have permission to verify this user.", ephemeral=True)
                     return
             
+                # Safely extract the member ID from the custom_id
+                try:
+                    member_id = int(interaction.data["custom_id"].split("_")[2])
+                except (KeyError, IndexError, ValueError):
+                    await interaction.response.send_message("An error occurred while processing this action.", ephemeral=True)
+                    return
+            
                 guild = interaction.guild
                 settings = await self.config.guild(guild).all()
                 suspicious_role = guild.get_role(settings["suspicious_role"])
@@ -162,8 +169,6 @@ class SuspiciousUserMonitor(commands.Cog):
                     await interaction.response.send_message("Suspicious role not configured correctly.", ephemeral=True)
                     return
             
-                # Retrieve the member's ID from the custom_id
-                member_id = int(interaction.data.get("custom_id").split("_")[1])
                 member = guild.get_member(member_id)
                 if not member or suspicious_role not in member.roles:
                     await interaction.response.send_message("This user does not have the suspicious role or is no longer in the server.", ephemeral=True)
