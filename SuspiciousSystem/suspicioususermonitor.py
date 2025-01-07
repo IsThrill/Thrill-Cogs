@@ -151,7 +151,7 @@ class SuspiciousUserMonitor(commands.Cog):
             
 verify_safe_button = discord.ui.Button(label="Verify as Safe", style=discord.ButtonStyle.success)
 
-     async def verify_safe(interaction: discord.Interaction):
+    async def verify_safe(interaction: discord.Interaction):
         guild = interaction.guild
         
         # Ensure the user has the appropriate permissions
