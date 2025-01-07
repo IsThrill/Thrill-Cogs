@@ -79,7 +79,6 @@ class SuspiciousUserMonitor(commands.Cog):
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         default_guild = {
             "suspicious_role": None,
-            "staff_role": None,
             "questionnaire_channel": None,
             "suspicious_users": {},
             "test_mode": False,
@@ -199,7 +198,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
             alert_channel = guild.get_channel(settings["questionnaire_channel"])
             if alert_channel:
-                staff_ping = f"<@&{staff_role.id}>" if not settings["test_mode"] else ""
+                staff_ping = "<@everyone>" if not settings["test_mode"] else ""
                 await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
     @commands.Cog.listener()
@@ -259,7 +258,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     view.add_item(ban_button)
                     view.add_item(staff_reply_button)
 
-                    staff_ping = f"<@&{settings['staff_role']}>" if not settings["test_mode"] else ""
+                    staff_ping = "<@everyone>" if not settings["test_mode"] else ""
                     await alert_channel.send(content=staff_ping, embed=embed, view=view)
 
                 await message.author.send("Your response has been submitted.")
@@ -270,7 +269,6 @@ class SuspiciousUserMonitor(commands.Cog):
         commands_list = {
             "sus setrole": "Set the suspicious role.",
             "sus config": "Shows the servers current configuration",
-            "sus setstaff": "Set the staff role to ping.",
             "sus setchannel": "Set the alert channel.",
             "sus test": "Toggle test mode.",
             "sus clearresponse": "Clear a user's response so they can resubmit.",
@@ -313,17 +311,12 @@ class SuspiciousUserMonitor(commands.Cog):
     @suspiciousmonitor.command(name="setrole")
     @commands.has_permissions(administrator=True)
     async def setrole(self, ctx, role: discord.Role):
+        """
+        Sets the suspicious role.
+        """
         await self.config.guild(ctx.guild).suspicious_role.set(role.id)
         await ctx.send(f"Suspicious role set to {role.mention}.")
 
-    @suspiciousmonitor.command(name="setstaff")
-    @commands.has_permissions(administrator=True)
-    async def setstaff(self, ctx, role: discord.Role):
-        """
-        Sets the staff role to ping the staff. 
-        """
-        await self.config.guild(ctx.guild).staff_role.set(role.id)
-        await ctx.send(f"Staff role set to {role.mention}.")
 
     @suspiciousmonitor.command(name="setchannel")
     @commands.has_permissions(administrator=True)
