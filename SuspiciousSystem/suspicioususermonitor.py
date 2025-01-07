@@ -124,7 +124,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     await member.add_roles(suspicious_role, reason="Marked as suspicious")
             
                     # Collect and store the previous roles of the member
-                    previous_roles = [role.id for role in member.roles if role != guild.default_role]
+                    previous_roles = [role.id for role in member.roles if role != guild.default_role and role.id != settings["suspicious_role"]]
             
                     # Store the roles in the config for future reference
                     async with self.config.guild(guild).suspicious_users() as suspicious_users:
@@ -135,7 +135,7 @@ class SuspiciousUserMonitor(commands.Cog):
                         *[guild.get_role(rid) for rid in previous_roles if guild.get_role(rid)],
                         reason="Marked as suspicious"
                     )
-            
+
                     try:
                         await member.send("Hey there, you've been automatically assigned and put into a suspicious category before we can continue your entry into the Discord. Please answer the questionnaire I've provided.\n\n"
                                           "1. How did you find A New Beginning?\n"
