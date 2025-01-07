@@ -151,10 +151,17 @@ class SuspiciousUserMonitor(commands.Cog):
 
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
-                    # Check if the member has the suspicious role
+                    # Get the member from the guild using interaction.user.id
+                    member = interaction.guild.get_member(interaction.user.id)
+                    
+                    if not member:
+                        await interaction.response.send_message("Unable to find the member in the guild.", ephemeral=True)
+                        return
+                    
+                    # Now check if the member has the suspicious role
                     suspicious_role = interaction.guild.get_role(settings["suspicious_role"])
                     
-                    if suspicious_role not in interaction.member.roles:
+                    if suspicious_role not in member.roles:
                         # Deny action if the user is not marked as suspicious
                         await interaction.response.send_message("The user has already been verified as safe or has not been marked as suspicious.", ephemeral=True)
                         return
@@ -162,7 +169,7 @@ class SuspiciousUserMonitor(commands.Cog):
                     # Remove the suspicious role and restore previous roles
                     async with self.config.guild(interaction.guild).suspicious_users() as suspicious_users:
                         previous_roles = suspicious_users.pop(str(member.id), [])
-            
+                    
                     await member.remove_roles(suspicious_role, reason="Verified as safe")
                     await member.add_roles(
                         *[interaction.guild.get_role(rid) for rid in previous_roles if interaction.guild.get_role(rid)],
