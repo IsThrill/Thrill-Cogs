@@ -28,48 +28,53 @@ class SuspiciousUserMonitor(commands.Cog):
         
         if not settings["alert_channel"]:
             return
-
+    
         account_age = datetime.now(pytz.utc) - member.created_at
         est_tz = pytz.timezone("US/Eastern")
         account_creation_est = member.created_at.astimezone(est_tz)
-
+    
         if account_age.days < settings["min_account_age"]:
-            alert_channel = guild.get_channel(settings["questionnaire_channel"])
-            mention_role = f'<@&{settings["mention_role"]}>' if settings["mention_role"] else "@everyone"
+            alert_channel = guild.get_channel(settings["alert_channel"])
+            mention_role = f"<@&{settings['mention_role']}>" if settings["mention_role"] else "@everyone"
             
             embed = discord.Embed(
                 title="Suspicious Account Alert",
-                description=f"{mention_role}, <@{member.id}> joined the server. Their account is {account_age.days} days old.",
+                description=f"<@{member.id}> joined the server. Their account is {account_age.days} days old.",
                 color=discord.Color.red(),
             )
             embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
             embed.add_field(name="Account Creation Date (EST)", value=account_creation_est.strftime("%Y-%m-%d %H:%M:%S %Z"), inline=True)
             embed.set_thumbnail(url=member.avatar.url)
-
+    
             view = View()
             mark_suspicious_button = Button(label="Mark as Suspicious", style=discord.ButtonStyle.danger)
             verify_safe_button = Button(label="Verify Safe", style=discord.ButtonStyle.success)
-
+    
             async def mark_suspicious(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     suspicious_role = guild.get_role(1283455822281838693)
                     if suspicious_role:
                         await member.edit(roles=[suspicious_role])
                         await interaction.response.send_message("User marked as suspicious.", ephemeral=True)
-
+    
             async def verify_safe(interaction: discord.Interaction):
                 if interaction.user.guild_permissions.manage_roles:
                     await member.remove_roles(guild.get_role(1283455822281838693), reason="Verified as safe")
                     await interaction.response.send_message("User verified as safe and roles restored.", ephemeral=True)
-
+    
             mark_suspicious_button.callback = mark_suspicious
             verify_safe_button.callback = verify_safe
-
+    
             view.add_item(mark_suspicious_button)
             view.add_item(verify_safe_button)
-
+    
             if alert_channel:
-                await alert_channel.send(embed=embed, view=view, allowed_mentions=discord.AllowedMentions(roles=True))
+                await alert_channel.send(
+                    content=mention_role,
+                    embed=embed,
+                    view=view,
+                    allowed_mentions=discord.AllowedMentions(roles=True)
+                )
 
     @commands.group(name="sus", invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
