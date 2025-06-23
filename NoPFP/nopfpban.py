@@ -35,30 +35,28 @@ class NoPfpBan(commands.Cog):
         settings = await self.config.guild(member.guild).all()
         if not settings["enabled"] or member.avatar:
             return
-
+        
+        action_past_tense = "banned" if settings['action'] == "ban" else "kicked"
+        
         try:
             dm_message = (
-                f"You have been automatically {settings['action']}ned from {member.guild.name} "
+                f"You have been automatically {action_past_tense} from {member.guild.name} "
                 f"for the following reason: {settings['reason']}"
             )
             await member.send(dm_message)
-            await asyncio.sleep(2)  
+            await asyncio.sleep(2)
         except discord.Forbidden:
             log.info(f"Could not DM {member} ({member.id}), proceeding with action.")
 
-        action_func = None
-        if settings["action"] == "ban":
-            action_func = member.ban
-        else: 
-            action_func = member.kick
+        action_func = member.ban if settings["action"] == "ban" else member.kick
 
         try:
             await action_func(reason=settings["reason"])
-            log.info(f"Successfully {settings['action']}ned {member} from {member.guild.name}.")
+            log.info(f"Successfully {action_past_tense} {member} from {member.guild.name}.")
             await self._log_action(
                 member,
-                f"User {settings['action'].capitalize()}ned",
-                f"**{member.display_name}** (`{member.id}`) was automatically {settings['action']}ned.",
+                f"User {action_past_tense.capitalize()}",
+                f"**{member.display_name}** (`{member.id}`) was automatically {action_past_tense}.",
                 discord.Color.green() if settings['action'] == 'kick' else discord.Color.orange()
             )
         except discord.Forbidden:
@@ -102,7 +100,8 @@ class NoPfpBan(commands.Cog):
         """
         Manage settings for banning users with no profile picture.
         """
-        await ctx.send_help()
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
 
     @autoban.command(name="toggle")
     async def autoban_toggle(self, ctx: commands.Context, true_or_false: bool):
