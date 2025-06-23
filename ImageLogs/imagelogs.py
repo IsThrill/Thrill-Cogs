@@ -19,52 +19,66 @@ class ImageLogs(commands.Cog):
         """Nothing to delete"""
         return
 
-    @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        """Logs images when a message is deleted."""
-        if not message.guild:
-            return  # Ignore DMs
+@commands.Cog.listener()
+async def on_message_delete(self, message: discord.Message):
+    """Logs images when a message is deleted."""
+    if not message.guild or not message.attachments:
+        return
 
-        # Fetch the log channel
-        log_channel_id = await self.config.guild(message.guild).log_channel()
-        if not log_channel_id:
-            return  # No log channel configured
+    log_channel_id = await self.config.guild(message.guild).log_channel()
+    if not log_channel_id:
+        return
 
-        log_channel = self.bot.get_channel(log_channel_id)
-        if not log_channel:
-            log.warning(f"Log channel with ID {log_channel_id} not found in guild {message.guild.name}.")
-            return
+    log_channel = self.bot.get_channel(log_channel_id)
+    if not log_channel:
+        log.warning(f"Log channel with ID {log_channel_id} not found in guild {message.guild.name}.")
+        return
 
-        # Extract image attachments
-        images = [
-            attachment for attachment in message.attachments 
-            if attachment.content_type and attachment.content_type.startswith("image")
-        ]
-        
-        if not images:
-            return  # No images to log
+    image_attachments = [
+        att for att in message.attachments if att.content_type and att.content_type.startswith("image")
+    ]
+    if not image_attachments:
+        return
 
-        async with aiohttp.ClientSession() as session:
-            for index, image in enumerate(images):
-                try:
-                    async with session.get(image.url) as response:
-                        if response.status == 200:
-                            image_data = await response.read()
-                            image_file = discord.File(io.BytesIO(image_data), filename=image.filename)
-                            embed = discord.Embed(
-                                title=f"Deleted Image {index + 1} of {len(images)}",
-                                description=f"Message deleted in {message.channel.mention}",
-                                color=discord.Color.red(),
-                                timestamp=message.created_at
-                            )
-                            embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
-                            embed.set_footer(text=f"Message ID: {message.id}")
-                            embed.set_image(url=f"attachment://{image.filename}")
-                            await log_channel.send(embed=embed, file=image_file)
-                        else:
-                            log.warning(f"Failed to download image {image.url} with status {response.status}")
-                except Exception as e:
-                    log.error(f"Error downloading image {image.url}: {e}")
+    files_to_upload = []
+    async with aiohttp.ClientSession() as session:
+        for attachment in image_attachments:
+            try:
+                async with session.get(attachment.url) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        files_to_upload.append(discord.File(io.BytesIO(image_data), filename=attachment.filename))
+                    else:
+                        log.warning(f"Failed to download image {attachment.url} with status {response.status}")
+            except Exception as e:
+                log.error(f"Error downloading image {attachment.url}: {e}")
+
+    if not files_to_upload:
+        log.info(f"Could not download any of the {len(image_attachments)} images from deleted message {message.id}.")
+        return
+
+    # Create one embed for context
+    description = f"Message with **{len(files_to_upload)}** image(s) deleted in {message.channel.mention}"
+    if message.content:
+        description += f"\n\n**Content:**\n>>> {message.content}"
+
+    embed = discord.Embed(
+        title="Deleted Image(s)",
+        description=description,
+        color=discord.Color.red(),
+        timestamp=message.created_at
+    )
+    embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+    embed.set_footer(text=f"Author ID: {message.author.id} | Message ID: {message.id}")
+    
+    # Set the embed's image to the first file in the list for a preview
+    embed.set_image(url=f"attachment://{files_to_upload[0].filename}")
+
+    try:
+        # Send one message with the embed and all the files
+        await log_channel.send(embed=embed, files=files_to_upload)
+    except discord.HTTPException as e:
+        log.error(f"Failed to upload {len(files_to_upload)} images to log channel. Error: {e}")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
