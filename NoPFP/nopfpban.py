@@ -96,7 +96,7 @@ class NoPfpBan(commands.Cog):
         """
         Manage settings for banning users with no profile picture.
         """
-            await ctx.send_help()
+        await ctx.send_help()
 
     @nopfpban.command(name="toggle")
     async def nopfpban_toggle(self, ctx: commands.Context, true_or_false: bool):
