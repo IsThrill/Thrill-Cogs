@@ -79,14 +79,14 @@ class ImageLogs(commands.Cog):
         except discord.HTTPException as e:
             log.error(f"Failed to upload {len(files_to_upload)} images to log channel. Error: {e}")
 
-    @commands.group()
+    @commands.group(name="imagelogs", aliases=["imglogs"], invoke_without_command=True, case_insensitive=True)
     @commands.has_permissions(administrator=True)
     async def imagelogs(self, ctx: commands.Context):
         """
         Manage settings for ImageLogs.
         """
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+        
+        await ctx.send(embed=embed)
 
     @imagelogs.command(name="set")
     async def imagelogs_set(self, ctx: commands.Context, channel: discord.TextChannel):
