@@ -90,8 +90,8 @@ class NoPfpBan(commands.Cog):
         except discord.Forbidden:
             log.warning(f"Failed to send log message to channel {log_channel.name} in guild {member.guild.name}.")
 
-    # --- FIX: Renamed the entire group to avoid any possible conflicts ---
-    @commands.group(name="nopfpban", aliases=["nopfp"])
+    # --- FINAL FIX: Removed the conflicting "nopfp" alias. ---
+    @commands.group(name="nopfpban")
     @commands.has_permissions(administrator=True)
     async def nopfpban(self, ctx: commands.Context):
         """
