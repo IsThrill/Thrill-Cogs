@@ -70,16 +70,13 @@ class NoPfpBan(commands.Cog):
             )
 
     async def _log_action(self, member: discord.Member, title: str, description: str, color: discord.Color):
-        """A single helper to send log messages."""
         log_channel_id = await self.config.guild(member.guild).log_channel()
         if not log_channel_id:
             return
-
         log_channel = self.bot.get_channel(log_channel_id)
         if not log_channel:
             log.warning(f"Log channel {log_channel_id} not found in guild {member.guild.id}")
             return
-
         embed = discord.Embed(
             title=f"No PFP > {title}",
             description=description,
@@ -88,36 +85,36 @@ class NoPfpBan(commands.Cog):
         )
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_footer(text=f"User Join")
-
         try:
             await log_channel.send(embed=embed)
         except discord.Forbidden:
             log.warning(f"Failed to send log message to channel {log_channel.name} in guild {member.guild.name}.")
 
-    @commands.group(aliases=["nopfp"])
+    # --- FIX: Renamed the entire group to avoid any possible conflicts ---
+    @commands.group(name="nopfpban", aliases=["nopfp"])
     @commands.has_permissions(administrator=True)
-    async def autoban(self, ctx: commands.Context):
+    async def nopfpban(self, ctx: commands.Context):
         """
         Manage settings for banning users with no profile picture.
         """
         if ctx.invoked_subcommand is None:
             await ctx.send_help()
 
-    @autoban.command(name="toggle")
-    async def autoban_toggle(self, ctx: commands.Context, true_or_false: bool):
+    @nopfpban.command(name="toggle")
+    async def nopfpban_toggle(self, ctx: commands.Context, true_or_false: bool):
         """Enable or disable the NoPfpBan feature."""
         await self.config.guild(ctx.guild).enabled.set(true_or_false)
         status = "enabled" if true_or_false else "disabled"
         await ctx.send(f"NoPfpBan has been {status} in this guild.")
 
-    @autoban.command(name="reason")
-    async def autoban_reason(self, ctx: commands.Context, *, reason: str):
+    @nopfpban.command(name="reason")
+    async def nopfpban_reason(self, ctx: commands.Context, *, reason: str):
         """Set the reason for the automatic action."""
         await self.config.guild(ctx.guild).reason.set(reason)
         await ctx.send(f"Autoban reason set to: `{reason}`")
 
-    @autoban.command(name="action")
-    async def autoban_action(self, ctx: commands.Context, action: str):
+    @nopfpban.command(name="action")
+    async def nopfpban_action(self, ctx: commands.Context, action: str):
         """
         Set the action to either `ban` or `kick`.
         """
@@ -127,8 +124,8 @@ class NoPfpBan(commands.Cog):
         await self.config.guild(ctx.guild).action.set(action)
         await ctx.send(f"Autoban action set to `{action}`.")
 
-    @autoban.command(name="logchannel")
-    async def autoban_logchannel(self, ctx: commands.Context, channel: discord.TextChannel = None):
+    @nopfpban.command(name="logchannel")
+    async def nopfpban_logchannel(self, ctx: commands.Context, channel: discord.TextChannel = None):
         """
         Set the channel for logging actions.
         
@@ -141,8 +138,8 @@ class NoPfpBan(commands.Cog):
         else:
             await ctx.send("Log channel has been disabled.")
 
-    @autoban.command(name="settings", aliases=["status"])
-    async def autoban_settings(self, ctx: commands.Context):
+    @nopfpban.command(name="settings", aliases=["status"])
+    async def nopfpban_settings(self, ctx: commands.Context):
         """Check the current settings for NoPfpBan."""
         settings = await self.config.guild(ctx.guild).all()
         status = "Enabled" if settings["enabled"] else "Disabled"
