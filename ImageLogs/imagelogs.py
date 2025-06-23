@@ -85,8 +85,7 @@ class ImageLogs(commands.Cog):
         """
         Manage settings for ImageLogs.
         """
-        
-        await ctx.send(embed=embed)
+        await ctx.send_help()
 
     @imagelogs.command(name="set")
     async def imagelogs_set(self, ctx: commands.Context, channel: discord.TextChannel):
