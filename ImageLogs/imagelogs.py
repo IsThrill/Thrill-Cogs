@@ -57,7 +57,6 @@ async def on_message_delete(self, message: discord.Message):
         log.info(f"Could not download any of the {len(image_attachments)} images from deleted message {message.id}.")
         return
 
-    # Create one embed for context
     description = f"Message with **{len(files_to_upload)}** image(s) deleted in {message.channel.mention}"
     if message.content:
         description += f"\n\n**Content:**\n>>> {message.content}"
@@ -71,11 +70,10 @@ async def on_message_delete(self, message: discord.Message):
     embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
     embed.set_footer(text=f"Author ID: {message.author.id} | Message ID: {message.id}")
     
-    # Set the embed's image to the first file in the list for a preview
+    
     embed.set_image(url=f"attachment://{files_to_upload[0].filename}")
 
     try:
-        # Send one message with the embed and all the files
         await log_channel.send(embed=embed, files=files_to_upload)
     except discord.HTTPException as e:
         log.error(f"Failed to upload {len(files_to_upload)} images to log channel. Error: {e}")
