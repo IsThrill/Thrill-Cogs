@@ -2,13 +2,13 @@ import discord
 from discord import app_commands
 from redbot.core import commands, Config
 
-# Import components
+# Import our custom components
 from .config import TRLConfig, DEFAULT_GUILD_SETTINGS
 from . import logembeds
 
 class ThrillsRobustLogging(commands.GroupCog, group_name="logset"):
     """
-    A powerful and robust logging cog
+    A powerful and robust logging cog with slash commands.
     """
 
     def __init__(self, bot):
@@ -18,10 +18,10 @@ class ThrillsRobustLogging(commands.GroupCog, group_name="logset"):
 
     # --- Improved Helper ---
     async def _send_log(self, guild: discord.Guild, embed: discord.Embed, category: str, setting_name: str):
+        """A more robust helper to check settings and send the log."""
         if not guild or not embed:
             return
 
-        # Checks the specific toggle directly, which is more accurate.
         if not await self.config.get_toggle(guild, category, setting_name):
             return
         
@@ -34,7 +34,12 @@ class ThrillsRobustLogging(commands.GroupCog, group_name="logset"):
         if not log_channel or not log_channel.permissions_for(guild.me).send_messages:
             return
             
-        await log_channel.send(embed=embed)
+        try:
+            await log_channel.send(embed=embed)
+        except discord.Forbidden:
+            print(f"ERROR: TRL cog could not send message to channel {log_channel_id} in guild {guild.id}. Missing Permissions.")
+        except discord.HTTPException as e:
+            print(f"ERROR: TRL cog failed to send a log due to a Discord API error: {e}")
 
     # --- Slash Commands ---
     @app_commands.command(name="channel", description="Set a log channel for a specific category.")
@@ -45,7 +50,7 @@ class ThrillsRobustLogging(commands.GroupCog, group_name="logset"):
     @app_commands.choices(category=[
         app_commands.Choice(name=cat, value=cat) for cat in DEFAULT_GUILD_SETTINGS["log_channels"].keys()
     ])
-    @app_commands.checks.admin_or_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True) # <-- CORRECTED LINE
     async def logset_channel(self, interaction: discord.Interaction, category: str, channel: discord.TextChannel = None):
         """Sets a log channel for a specific category."""
         await self.config.set_log_channel(interaction.guild, category, channel.id if channel else None)
@@ -59,7 +64,7 @@ class ThrillsRobustLogging(commands.GroupCog, group_name="logset"):
         category="The category of the event.",
         setting="The specific event to toggle."
     )
-    @app_commands.checks.admin_or_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True) # <-- CORRECTED LINE
     async def logset_toggle(self, interaction: discord.Interaction, category: str, setting: str):
         """Toggles a specific logging event on or off."""
         all_toggles = await self.config.get_all_toggles(interaction.guild)
