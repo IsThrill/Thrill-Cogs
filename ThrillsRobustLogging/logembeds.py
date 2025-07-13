@@ -421,9 +421,14 @@ async def webhook_created(webhook, moderator, channel: discord.TextChannel):
     return embed
 
 async def webhook_deleted(webhook, moderator, channel: discord.TextChannel):
-    embed = discord.Embed(description=f"**Webhook `{webhook.name}` deleted from {channel.mention}**", color=LOG_COLORS["red"], timestamp=datetime.now(timezone.utc))
+    """Creates an embed for a webhook deletion."""
+    embed = discord.Embed(
+        description=f"**Webhook `{webhook.name}` deleted from {channel.mention}**",
+        color=LOG_COLORS["red"],
+        timestamp=datetime.now(timezone.utc)
+    )
     embed.add_field(name="Deleted By", value=_get_mod_mention(moderator), inline=False)
-    embed.set_footer(text=f"Webhook ID: {webhook.id}")
+    embed.set_footer(text=f"Webhook Deleted in #{channel.name}")
     return embed
 
 async def webhook_updated(webhook, moderator, channel: discord.TextChannel, changes: list):
