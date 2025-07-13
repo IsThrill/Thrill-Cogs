@@ -16,8 +16,6 @@ class ServerListeners(commands.Cog):
         self.bot = bot
         self.cog: "ThrillsRobustLogging" = None
 
-    # --- Main Listeners ---
-
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.TextChannel | discord.VoiceChannel):
         """Logs creation, deletion, or updates of webhooks."""
@@ -28,17 +26,18 @@ class ServerListeners(commands.Cog):
         try:
             audit_entry = None
             async for entry in guild.audit_logs(limit=5):
-                if entry.action in (discord.AuditLogAction.webhook_create, discord.AuditLogAction.webhook_update):
+                action = entry.action
+                if action == discord.AuditLogAction.webhook_create or action == discord.AuditLogAction.webhook_update:
                     if hasattr(entry.target, 'channel_id') and entry.target.channel_id == channel.id:
                         audit_entry = entry
                         break
-                elif entry.action == discord.AuditLogAction.webhook_delete:
+                elif action == discord.AuditLogAction.webhook_delete:
                     if hasattr(entry.before, 'channel_id') and entry.before.channel_id == channel.id:
                         audit_entry = entry
                         break
-
+            
             if not audit_entry:
-                return 
+                return
 
             moderator = audit_entry.user
             
@@ -50,15 +49,17 @@ class ServerListeners(commands.Cog):
                 await self.cog._send_log(guild, embed, "server", "webhook_delete")
             elif audit_entry.action == discord.AuditLogAction.webhook_update:
                 changes = []
-                for attr, before_val, after_val in entry.changes:
-                    if attr == 'name':
-                        changes.append(f"**Name:** `{before_val}` → `{after_val}`")
-                    elif attr == 'channel':
-                        changes.append(f"**Channel:** {before_val.mention} → {after_val.mention}")
-                    else: 
-                        changes.append(f"**{attr.replace('_', ' ').title()}** updated")
+                before_state = entry.changes.before
+                after_state = entry.changes.after
+
+                if hasattr(before_state, 'name') and hasattr(after_state, 'name') and before_state.name != after_state.name:
+                    changes.append(f"**Name:** `{before_state.name}` → `{after_state.name}`")
+                if hasattr(before_state, 'channel') and hasattr(after_state, 'channel') and before_state.channel != after_state.channel:
+                    changes.append(f"**Channel:** {before_state.channel.mention} → {after_state.channel.mention}")
+                if hasattr(before_state, 'avatar') and hasattr(after_state, 'avatar') and before_state.avatar != after_state.avatar:
+                    changes.append(f"**Avatar Updated**")
                 
-                if not changes: return 
+                if not changes: return
                 
                 embed = await logembeds.webhook_updated(audit_entry.target, moderator, changes)
                 await self.cog._send_log(guild, embed, "server", "webhook_update")
@@ -67,7 +68,6 @@ class ServerListeners(commands.Cog):
             pass 
 
 
-    
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
         if not self.cog: return
@@ -144,7 +144,4 @@ class ServerListeners(commands.Cog):
             if before_map[sticker_id].name != after_map[sticker_id].name or before_map[sticker_id].description != after_map[sticker_id].description:
                 before_sticker = before_map[sticker_id]
                 after_sticker = after_map[sticker_id]
-                entry = await self.cog._get_audit_log_entry(guild, after_sticker, discord.AuditLogAction.sticker_update)
-                moderator = entry.user if entry else "Unknown Moderator"
-                embed = await logembeds.sticker_updated(before_sticker, after_sticker, moderator)
-                await self.cog._send_log(guild, embed, "server", "sticker_update")
+                entry = await self
