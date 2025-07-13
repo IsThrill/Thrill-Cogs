@@ -117,16 +117,31 @@ async def messages_purged(count: int, channel: discord.TextChannel, moderator: d
 
 # --- Member Listeners ---
 
-async def member_joined(member: discord.Member):
-    """Creates an embed for a new member."""
+async def member_joined(member: discord.Member, invite: discord.Invite, is_new: bool):
+    """Creates an embed for a new member with invite tracking."""
+    
+    description = f"**{member.mention} joined the server**"
+    if is_new:
+        description += " <:thrillswarning:1248039750012502157>"
+
     embed = discord.Embed(
-        description=f"**{member.mention} joined the server**",
+        description=description,
         color=LOG_COLORS["green"],
         timestamp=datetime.now(timezone.utc)
     )
     embed.set_thumbnail(url=member.display_avatar.url)
-    embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:R>", inline=True)
+    embed.add_field(name="Account Age", value=f"<t:{int(member.created_at.timestamp())}:R>", inline=True)
     embed.add_field(name="Total Members", value=f"{member.guild.member_count}", inline=True)
+    
+    if invite and invite.inviter:
+        invite_info = (
+            f"**Invited by:** {invite.inviter.mention}\n"
+            f"**Invite Code:** `{invite.code}` (`{invite.uses}` uses)"
+        )
+        embed.add_field(name="Invite Information", value=invite_info, inline=False)
+    else:
+        embed.add_field(name="Invite Information", value="Could not determine invite.", inline=False)
+        
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
