@@ -126,38 +126,64 @@ async def messages_purged(count: int, channel: discord.TextChannel, moderator: d
 # --- Member Listeners ---
 
 async def member_joined(member: discord.Member, invite: discord.Invite, is_new: bool):
-    description = f"**{member.mention} joined the server**"
+    """Creates an embed for a new member with invite tracking."""
+    
+    description = f"**{member.mention} ({discord.utils.escape_markdown(str(member))}) joined the server**"
     if is_new:
         description += " <:thrillswarning:1248039750012502157>"
-    embed = discord.Embed(description=description, color=LOG_COLORS["green"], timestamp=datetime.now(timezone.utc))
+
+    embed = discord.Embed(
+        description=description,
+        color=LOG_COLORS["green"],
+        timestamp=datetime.now(timezone.utc)
+    )
     embed.set_thumbnail(url=member.display_avatar.url)
+    
     embed.add_field(name="Account Age", value=f"<t:{int(member.created_at.timestamp())}:R>", inline=True)
     embed.add_field(name="Total Members", value=f"{member.guild.member_count}", inline=True)
+    
+    embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
+
     invite_info = "Could not determine invite."
     if invite:
+        invite_link = f"[`{invite.code}`](https://discord.gg/{invite.code})"
         if invite.inviter:
-            invite_info = (f"**Invited by:** {_get_mod_mention(invite.inviter)}\n"
-                           f"**Invite Code:** `{invite.code}` (`{invite.uses}` uses)")
-        else:
-            invite_info = f"Joined via the server's vanity URL (`{invite.code}`)"
+            invite_info = (f"**Invited by:** {invite.inviter.mention}\n"
+                           f"**Invite:** {invite_link} (`{invite.uses}` uses)")
+        else: # Vanity URL
+            invite_info = f"Joined via the server's vanity URL: {invite_link}"
+
     embed.add_field(name="Invite Information", value=invite_info, inline=False)
-    embed.set_footer(text=f"User ID: {member.id}")
+        
+    embed.set_footer(text=f"Member Joined") 
     return embed
 
 async def member_left(member: discord.Member, invite_code: Optional[str]):
-    embed = discord.Embed(description=f"**{member.mention} left the server**", color=LOG_COLORS["red"], timestamp=datetime.now(timezone.utc))
+    """Creates an embed for a member who left, including their join invite."""
+    
+    embed = discord.Embed(
+        description=f"**{member.mention} ({discord.utils.escape_markdown(str(member))}) left the server**",
+        color=LOG_COLORS["red"],
+        timestamp=datetime.now(timezone.utc)
+    )
     embed.set_thumbnail(url=member.display_avatar.url)
+
     if member.joined_at:
         embed.add_field(name="Member For", value=f"<t:{int(member.joined_at.timestamp())}:R>", inline=True)
         embed.add_field(name="Joined On", value=f"<t:{int(member.joined_at.timestamp())}:D>", inline=True)
+    
+    embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
+
     if invite_code:
-        embed.add_field(name="Joined Via", value=f"`{invite_code}`", inline=True)
+        embed.add_field(name="Joined Via", value=f"[`{invite_code}`](https://discord.gg/{invite_code})", inline=True)
     else:
         embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:D>", inline=True)
+
     roles = [r.mention for r in member.roles if r.name != "@everyone"]
     if roles:
         embed.add_field(name=f"Roles [{len(roles)}]", value=" ".join(roles)[:1024], inline=False)
-    embed.set_footer(text=f"User ID: {member.id}")
+        
+    embed.set_footer(text=f"Member Left") 
     return embed
 
 async def member_nickname_changed(member: discord.Member, moderator: discord.User, before_nick: str, after_nick: str):
