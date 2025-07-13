@@ -12,7 +12,6 @@ LOG_COLORS = {
     "purple": 0x9B59B6    # High-level Server & Role Updates
 }
 
-# --- Helper to safely get moderator mention ---
 def _get_mod_mention(moderator):
     """Safely returns a moderator's mention or the raw string if it's not a user object."""
     return moderator.mention if isinstance(moderator, (discord.User, discord.Member)) else str(moderator)
@@ -431,9 +430,15 @@ async def webhook_deleted(webhook, moderator, channel: discord.TextChannel):
     embed.set_footer(text=f"Webhook Deleted in #{channel.name}")
     return embed
 
-async def webhook_updated(webhook, moderator, channel: discord.TextChannel, changes: list):
-    embed = discord.Embed(title=f"Webhook Updated: {webhook.name}", description="\n".join(changes), color=LOG_COLORS["purple"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="Webhook", value=f"`{webhook.name}` in {channel.mention}", inline=True)
+async def webhook_updated(webhook, moderator, changes: list):
+    """Creates an embed for a webhook update."""
+    embed = discord.Embed(
+        title=f"Webhook Updated: {webhook.name}",
+        description="\n".join(changes),
+        color=LOG_COLORS["purple"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Webhook", value=f"`{webhook.name}` in {webhook.channel.mention}", inline=True)
     embed.add_field(name="Updated By", value=_get_mod_mention(moderator), inline=True)
     embed.set_footer(text=f"Webhook ID: {webhook.id}")
     return embed
