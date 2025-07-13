@@ -20,18 +20,15 @@ class ServerListeners(commands.Cog):
     # --- Webhook Cache Management ---
     @commands.Cog.listener()
     async def on_ready(self):
-        """Caches webhooks when the bot is ready."""
-        await asyncio.sleep(10) # Wait for bot to be fully available
+        await asyncio.sleep(10)
         for guild in self.bot.guilds:
             await self._cache_webhooks(guild)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        """Caches webhooks when joining a new guild."""
         await self._cache_webhooks(guild)
 
     async def _cache_webhooks(self, guild: discord.Guild):
-        """Helper to fetch and store a snapshot of a guild's webhooks."""
         try:
             self.webhook_cache[guild.id] = await guild.webhooks()
         except (discord.Forbidden, discord.HTTPException):
@@ -44,44 +41,54 @@ class ServerListeners(commands.Cog):
         """Logs creation, deletion, or updates of webhooks using state caching."""
         if not self.cog: return
         guild = channel.guild
-        await asyncio.sleep(1.0) 
+        await asyncio.sleep(1.2) 
 
         before_hooks = self.webhook_cache.get(guild.id, [])
         after_hooks = await guild.webhooks()
 
-        before_ids = {wh.id for wh in before_hooks}
-        after_ids = {wh.id for wh in after_hooks}
+        before_map = {wh.id: wh for wh in before_hooks}
+        after_map = {wh.id: wh for wh in after_hooks}
 
         # --- Deletion Check ---
-        deleted_ids = before_ids - after_ids
-        if deleted_ids:
-            deleted_id = deleted_ids.pop()
-            deleted_webhook_data = discord.utils.get(before_hooks, id=deleted_id)
-            if deleted_webhook_data:
-                moderator = "Unknown"
-                try:
-                    async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.webhook_delete):
-                        if entry.before.name == deleted_webhook_data.name and entry.before.channel_id == deleted_webhook_data.channel_id:
-                            moderator = entry.user
-                            break
-                except (discord.Forbidden, AttributeError):
-                    pass 
-                
-                embed = await logembeds.webhook_deleted(deleted_webhook_data, moderator, channel)
-                await self.cog._send_log(guild, embed, "server", "webhook_delete")
+        deleted_ids = before_map.keys() - after_map.keys()
+        for webhook_id in deleted_ids:
+            deleted_webhook_data = before_map[webhook_id]
+            moderator = "Unknown"
+            try:
+                async for entry in guild.audit_logs(limit=10, action=discord.AuditLogAction.webhook_delete):
+                    if hasattr(entry.before, "id") and entry.before.id == webhook_id:
+                        moderator = entry.user
+                        break
+            except (discord.Forbidden, AttributeError): pass
+            embed = await logembeds.webhook_deleted(deleted_webhook_data, moderator, channel)
+            await self.cog._send_log(guild, embed, "server", "webhook_delete")
 
         # --- Creation Check ---
-        created_ids = after_ids - before_ids
-        if created_ids:
-            created_id = created_ids.pop()
-            created_webhook = discord.utils.get(after_hooks, id=created_id)
-            if created_webhook:
-                entry = await self.cog._get_audit_log_entry(guild, created_webhook, discord.AuditLogAction.webhook_create)
+        created_ids = after_map.keys() - before_map.keys()
+        for webhook_id in created_ids:
+            created_webhook = after_map[webhook_id]
+            entry = await self.cog._get_audit_log_entry(guild, created_webhook, discord.AuditLogAction.webhook_create)
+            moderator = entry.user if entry else "Unknown"
+            embed = await logembeds.webhook_created(created_webhook, moderator, channel)
+            await self.cog._send_log(guild, embed, "server", "webhook_create")
+            
+        # --- Update Check ---
+        for webhook_id in before_map.keys() & after_map.keys():
+            before_hook = before_map[webhook_id]
+            after_hook = after_map[webhook_id]
+            if before_hook.name != after_hook.name or before_hook.channel_id != after_hook.channel_id:
+                changes = []
+                if before_hook.name != after_hook.name:
+                    changes.append(f"**Name:** `{before_hook.name}` → `{after_hook.name}`")
+                if before_hook.channel_id != after_hook.channel_id:
+                    changes.append(f"**Channel:** {before_hook.channel.mention} → {after_hook.channel.mention}")
+                
+                entry = await self.cog._get_audit_log_entry(guild, after_hook, discord.AuditLogAction.webhook_update)
                 moderator = entry.user if entry else "Unknown"
-                embed = await logembeds.webhook_created(created_webhook, moderator, channel)
-                await self.cog._send_log(guild, embed, "server", "webhook_create")
+                embed = await logembeds.webhook_updated(after_hook, moderator, channel, changes)
+                await self.cog._send_log(guild, embed, "server", "webhook_update")
 
-
+        # Finally, update the cache
         self.webhook_cache[guild.id] = after_hooks
 
 
