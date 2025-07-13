@@ -147,7 +147,7 @@ async def member_joined(member: discord.Member, invite: discord.Invite, is_new: 
     # --- Invite Information ---
     invite_info = "Could not determine invite."
     if invite:
-        invite_link = f"[https://discord.gg/](https://discord.gg/){invite.code}"
+        invite_link = f"https://discord.gg/{invite.code}"
         if invite.inviter: # Regular invite
             invite_info = (f"**Invited by:** {invite.inviter.mention}\n"
                            f"**Invite:** {invite_link} (`{invite.uses}` uses)")
@@ -175,7 +175,7 @@ async def member_left(member: discord.Member, invite_code: Optional[str]):
         embed.add_field(name="Joined On", value=f"<t:{int(member.joined_at.timestamp())}:D>", inline=True)
     
     if invite_code:
-        embed.add_field(name="Invite Information", value=f"[https://discord.gg/](https://discord.gg/){invite_code}", inline=True)
+        embed.add_field(name="Invite Information", value=f"https://discord.gg/{invite_code}", inline=True)
     else:
         embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:D>", inline=True)
         
