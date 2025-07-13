@@ -413,9 +413,15 @@ async def server_updated(guild: discord.Guild, moderator, changes: list):
     embed.set_footer(text=f"Server ID: {guild.id}")
     return embed
 
-async def webhook_created(webhook, moderator, channel: discord.TextChannel):
-    embed = discord.Embed(description=f"**Webhook `{webhook.name}` created in {channel.mention}**", color=LOG_COLORS["green"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="Created By", value=_get_mod_mention(moderator), inline=False)
+async def webhook_created(webhook, moderator, channel: discord.TextChannel, wh_type: str):
+    """Creates an embed for a webhook creation."""
+    embed = discord.Embed(
+        description=f"**Webhook `{webhook.name}` created in {channel.mention}**",
+        color=LOG_COLORS["green"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Created By", value=_get_mod_mention(moderator), inline=True)
+    embed.add_field(name="Type", value=wh_type, inline=True)
     embed.set_footer(text=f"Webhook ID: {webhook.id}")
     return embed
 
