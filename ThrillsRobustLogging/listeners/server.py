@@ -19,97 +19,113 @@ class ServerListeners(commands.Cog):
         self.processed_log_ids = deque(maxlen=50)
         self.webhook_cache = defaultdict(dict)
 
+    # --- Cache Management ---
     @commands.Cog.listener()
     async def on_ready(self):
+        """Caches all webhooks when the bot is ready."""
         await asyncio.sleep(10)
         for guild in self.bot.guilds:
             await self._update_webhook_cache(guild)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
+        """Caches webhooks when joining a new guild."""
         await self._update_webhook_cache(guild)
 
     async def _update_webhook_cache(self, guild: discord.Guild):
+        """Helper to fetch and store a snapshot of a guild's webhooks."""
         try:
             webhooks = await guild.webhooks()
             self.webhook_cache[guild.id] = {
-                wh.id: {
-                    "name": wh.name,
-                    "channel_id": wh.channel_id,
-                    "type": wh.type.name.upper()
-                } for wh in webhooks
+                wh.id: {"name": wh.name, "channel_id": wh.channel_id}
+                for wh in webhooks
             }
         except (discord.Forbidden, discord.HTTPException):
             self.webhook_cache[guild.id] = {}
 
+    # --- Webhook Listeners ---
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.abc.GuildChannel):
-        if not self.cog:
-            return
-        await asyncio.sleep(1.5)
+        """Logs all webhook changes using a reliable state-caching method."""
+        if not self.cog: return
         guild = channel.guild
+        await asyncio.sleep(1.5)
 
+        before_hooks = self.webhook_cache.get(guild.id, {})
         try:
-            async for entry in guild.audit_logs(limit=5):
-                if entry.id in self.processed_log_ids:
-                    continue
+            after_hooks_list = await guild.webhooks()
+            after_hooks = {wh.id: {"name": wh.name, "channel_id": wh.channel_id, "obj": wh} for wh in after_hooks_list}
+        except (discord.Forbidden, discord.HTTPException):
+            return
 
-                if entry.action in (
-                    discord.AuditLogAction.webhook_create,
-                    discord.AuditLogAction.webhook_update
-                ):
-                    webhook = entry.target
-                    if not hasattr(webhook, "channel_id") or webhook.channel_id != channel.id:
-                        continue
+        before_ids = before_hooks.keys()
+        after_ids = after_hooks.keys()
 
+        # --- Deletion Check (from your working logic) ---
+        deleted_ids = before_ids - after_ids
+        for webhook_id in deleted_ids:
+            pass 
+
+        # --- Creation Check ---
+        created_ids = after_ids - before_ids
+        if created_ids:
+            created_id = list(created_ids)[0]
+            created_webhook = after_hooks[created_id]["obj"]
+            entry = await self.cog._get_audit_log_entry(guild, created_webhook, discord.AuditLogAction.webhook_create)
+            if entry and entry.id not in self.processed_log_ids:
+                self.processed_log_ids.append(entry.id)
+                moderator = entry.user
+                wh_type = getattr(created_webhook.type, "name", "UNKNOWN").upper()
+                embed = await logembeds.webhook_created(created_webhook, moderator, created_webhook.channel, wh_type)
+                await self.cog._send_log(guild, embed, "server", "webhook_create")
+        
+        # --- FIXED: Update Check ---
+        for webhook_id in before_ids & after_ids:
+            if before_hooks[webhook_id] != {"name": after_hooks[webhook_id]["name"], "channel_id": after_hooks[webhook_id]["channel_id"]}:
+                webhook_obj = after_hooks[webhook_id]["obj"]
+                entry = await self.cog._get_audit_log_entry(guild, webhook_obj, discord.AuditLogAction.webhook_update)
+                if entry and entry.id not in self.processed_log_ids:
                     self.processed_log_ids.append(entry.id)
                     moderator = entry.user
-
-                    if entry.action == discord.AuditLogAction.webhook_create:
-                        wh_type = getattr(webhook.type, "name", "UNKNOWN").upper()
-                        embed = await logembeds.webhook_created(webhook, moderator, webhook.channel, wh_type)
-                        await self.cog._send_log(guild, embed, "server", "webhook_create")
-                    else:
-                        changes = []
-                        for key, before_val in entry.changes.before.items():
-                            after_val = entry.changes.after.get(key)
-                            if before_val != after_val:
-                                changes.append(f"**{key.replace('_', ' ').title()}**: `{before_val}` → `{after_val}`")
-                        embed = await logembeds.webhook_updated(webhook, moderator, changes)
+                    changes = []
+                    if before_hooks[webhook_id]["name"] != after_hooks[webhook_id]["name"]:
+                        changes.append(f"**Name:** `{before_hooks[webhook_id]['name']}` → `{after_hooks[webhook_id]['name']}`")
+                    
+                    if changes:
+                        embed = await logembeds.webhook_updated(webhook_obj, moderator, changes)
                         await self.cog._send_log(guild, embed, "server", "webhook_update")
-                    break
-        except Exception:
-            pass
-
+        
         await self._update_webhook_cache(guild)
 
     @commands.Cog.listener()
     async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
-        if (
-            entry.action != discord.AuditLogAction.webhook_delete
-            or not self.cog
-            or entry.id in self.processed_log_ids
-        ):
+        """Handles webhook DELETIONS reliably."""
+        if entry.action != discord.AuditLogAction.webhook_delete or not self.cog or entry.id in self.processed_log_ids:
             return
 
         self.processed_log_ids.append(entry.id)
         guild = entry.guild
         moderator = entry.user
-        webhook_id = getattr(entry.target, 'id', None)
-
-        cached = self.webhook_cache.get(guild.id, {}).pop(webhook_id, None)
-        name = getattr(entry.target, "name", None) or (cached.get("name") if cached else "Unknown Webhook")
-
-        channel = getattr(entry.extra, "channel", None)
-        if not channel and cached:
-            channel_id = cached.get("channel_id")
-            channel = guild.get_channel(channel_id) if channel_id else None
-
+        webhook_id = entry.target_id
+        
+        cached_data = self.webhook_cache.get(guild.id, {}).get(webhook_id)
+        
+        name = "Unknown Webhook"
+        channel = None
+        
+        if cached_data:
+            name = cached_data.get("name", "Unknown Webhook")
+            channel = guild.get_channel(cached_data.get("channel_id"))
+        
+        if not channel and hasattr(entry.extra, "channel"):
+            channel = entry.extra.channel
+            
         if channel:
             embed = await logembeds.webhook_deleted(None, moderator, channel, name=name)
             await self.cog._send_log(guild, embed, "server", "webhook_delete")
-
+        
         await self._update_webhook_cache(guild)
+
 
     # --- Other Server Event Listeners ---
     @commands.Cog.listener()
