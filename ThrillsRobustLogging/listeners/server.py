@@ -17,59 +17,8 @@ class ServerListeners(commands.Cog):
         self.cog: "ThrillsRobustLogging" = None
 
     @commands.Cog.listener()
-    async def on_webhooks_update(self, channel: discord.TextChannel | discord.VoiceChannel):
-        """Logs creation, deletion, or updates of webhooks."""
-        if not self.cog: return
-        guild = channel.guild
-        await asyncio.sleep(1.5) 
-
-        try:
-            audit_entry = None
-            async for entry in guild.audit_logs(limit=5):
-                action = entry.action
-                if action == discord.AuditLogAction.webhook_create or action == discord.AuditLogAction.webhook_update:
-                    if hasattr(entry.target, 'channel_id') and entry.target.channel_id == channel.id:
-                        audit_entry = entry
-                        break
-                elif action == discord.AuditLogAction.webhook_delete:
-                    if hasattr(entry.before, 'channel_id') and entry.before.channel_id == channel.id:
-                        audit_entry = entry
-                        break
-            
-            if not audit_entry:
-                return
-
-            moderator = audit_entry.user
-            
-            if audit_entry.action == discord.AuditLogAction.webhook_create:
-                embed = await logembeds.webhook_created(audit_entry.target, moderator, channel)
-                await self.cog._send_log(guild, embed, "server", "webhook_create")
-            elif audit_entry.action == discord.AuditLogAction.webhook_delete:
-                embed = await logembeds.webhook_deleted(audit_entry.before, moderator, channel)
-                await self.cog._send_log(guild, embed, "server", "webhook_delete")
-            elif audit_entry.action == discord.AuditLogAction.webhook_update:
-                changes = []
-                before_state = entry.changes.before
-                after_state = entry.changes.after
-
-                if hasattr(before_state, 'name') and hasattr(after_state, 'name') and before_state.name != after_state.name:
-                    changes.append(f"**Name:** `{before_state.name}` → `{after_state.name}`")
-                if hasattr(before_state, 'channel') and hasattr(after_state, 'channel') and before_state.channel != after_state.channel:
-                    changes.append(f"**Channel:** {before_state.channel.mention} → {after_state.channel.mention}")
-                if hasattr(before_state, 'avatar') and hasattr(after_state, 'avatar') and before_state.avatar != after_state.avatar:
-                    changes.append(f"**Avatar Updated**")
-                
-                if not changes: return
-                
-                embed = await logembeds.webhook_updated(audit_entry.target, moderator, changes)
-                await self.cog._send_log(guild, embed, "server", "webhook_update")
-
-        except discord.Forbidden:
-            pass 
-
-
-    @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
+        """Logs changes to core server settings."""
         if not self.cog: return
         changes: List[str] = []
         if before.name != after.name: changes.append(f"**Name:** `{before.name}` → `{after.name}`")
@@ -84,6 +33,23 @@ class ServerListeners(commands.Cog):
             except discord.Forbidden: pass
             embed = await logembeds.server_updated(after, moderator, changes)
             await self.cog._send_log(after, embed, "server", "update")
+
+
+    @commands.Cog.listener()
+    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
+        """Listens for audit log entries directly to capture webhook deletions."""
+        if not self.cog: return
+        
+        if entry.action == discord.AuditLogAction.webhook_delete:
+            guild = entry.guild
+            moderator = entry.user
+            deleted_webhook_data = entry.before
+            
+            channel = guild.get_channel(deleted_webhook_data.channel_id) if hasattr(deleted_webhook_data, "channel_id") else None
+
+            if channel:
+                embed = await logembeds.webhook_deleted(deleted_webhook_data, moderator, channel)
+                await self.cog._send_log(guild, embed, "server", "webhook_delete")
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite):
@@ -144,4 +110,7 @@ class ServerListeners(commands.Cog):
             if before_map[sticker_id].name != after_map[sticker_id].name or before_map[sticker_id].description != after_map[sticker_id].description:
                 before_sticker = before_map[sticker_id]
                 after_sticker = after_map[sticker_id]
-                entry = await self
+                entry = await self.cog._get_audit_log_entry(guild, after_sticker, discord.AuditLogAction.sticker_update)
+                moderator = entry.user if entry else "Unknown Moderator"
+                embed = await logembeds.sticker_updated(before_sticker, after_sticker, moderator)
+                await self.cog._send_log(guild, embed, "server", "sticker_update")
