@@ -41,10 +41,13 @@ class ServerListeners(commands.Cog):
         """Logs creation, deletion, or updates of webhooks using state caching."""
         if not self.cog: return
         guild = channel.guild
-        await asyncio.sleep(1.2) 
+        await asyncio.sleep(1.5) 
 
         before_hooks = self.webhook_cache.get(guild.id, [])
-        after_hooks = await guild.webhooks()
+        try:
+            after_hooks = await guild.webhooks()
+        except discord.Forbidden:
+            return 
 
         before_map = {wh.id: wh for wh in before_hooks}
         after_map = {wh.id: wh for wh in after_hooks}
@@ -72,23 +75,28 @@ class ServerListeners(commands.Cog):
             embed = await logembeds.webhook_created(created_webhook, moderator, channel)
             await self.cog._send_log(guild, embed, "server", "webhook_create")
             
-        # --- Update Check ---
-        for webhook_id in before_map.keys() & after_map.keys():
+        updated_ids = before_map.keys() & after_map.keys()
+        for webhook_id in updated_ids:
             before_hook = before_map[webhook_id]
             after_hook = after_map[webhook_id]
-            if before_hook.name != after_hook.name or before_hook.channel_id != after_hook.channel_id:
+            
+            if (before_hook.name != after_hook.name or 
+                before_hook.channel_id != after_hook.channel_id or
+                before_hook.avatar.key != after_hook.avatar.key):
+                
                 changes = []
                 if before_hook.name != after_hook.name:
                     changes.append(f"**Name:** `{before_hook.name}` → `{after_hook.name}`")
                 if before_hook.channel_id != after_hook.channel_id:
                     changes.append(f"**Channel:** {before_hook.channel.mention} → {after_hook.channel.mention}")
-                
+                if before_hook.avatar.key != after_hook.avatar.key:
+                    changes.append(f"**Avatar Updated**")
+
                 entry = await self.cog._get_audit_log_entry(guild, after_hook, discord.AuditLogAction.webhook_update)
                 moderator = entry.user if entry else "Unknown"
-                embed = await logembeds.webhook_updated(after_hook, moderator, channel, changes)
+                embed = await logembeds.webhook_updated(after_hook, moderator, changes)
                 await self.cog._send_log(guild, embed, "server", "webhook_update")
 
-        # Finally, update the cache
         self.webhook_cache[guild.id] = after_hooks
 
 
