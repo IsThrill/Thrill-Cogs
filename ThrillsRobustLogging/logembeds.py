@@ -220,29 +220,58 @@ async def member_avatar_changed(member: discord.Member):
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
+async def member_onboarding_complete(member: discord.Member):
+    """Creates an embed for a member completing onboarding."""
+    embed = discord.Embed(
+        description=f"✅ **{member.mention} ({discord.utils.escape_markdown(str(member))}) passed the membership screening.**",
+        color=LOG_COLORS["green"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_author(name="Member Onboarding Complete", icon_url=member.display_avatar.url)
+    embed.set_footer(text=f"User ID: {member.id}")
+    return embed
+
 # --- Moderation Listeners ---
 
 async def member_banned(user: discord.User, moderator, reason: str):
-    embed = discord.Embed(title="Member Banned", color=LOG_COLORS["red"], timestamp=datetime.now(timezone.utc))
-    embed.set_author(name=f"{user.display_name} ({user.id})", icon_url=user.display_avatar.url)
+    """Creates an embed for a member ban."""
+    embed = discord.Embed(
+        title="Member Banned", 
+        color=LOG_COLORS["red"], 
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_author(name=f"{user.display_name}", icon_url=user.display_avatar.url)
     embed.add_field(name="Member", value=user.mention, inline=True)
     embed.add_field(name="Moderator", value=_get_mod_mention(moderator), inline=True)
+    embed.add_field(name="User ID", value=f"```{user.id}```", inline=False) # ADDED
     embed.add_field(name="Reason", value=f"```{reason}```", inline=False)
     return embed
 
 async def member_unbanned(user: discord.User, moderator, reason: str):
-    embed = discord.Embed(title="Member Unbanned", color=LOG_COLORS["green"], timestamp=datetime.now(timezone.utc))
-    embed.set_author(name=f"{user.display_name} ({user.id})", icon_url=user.display_avatar.url)
+    """Creates an embed for a member unban."""
+    embed = discord.Embed(
+        title="Member Unbanned", 
+        color=LOG_COLORS["green"], 
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_author(name=f"{user.display_name}", icon_url=user.display_avatar.url)
     embed.add_field(name="Member", value=user.mention, inline=True)
     embed.add_field(name="Moderator", value=_get_mod_mention(moderator), inline=True)
+    embed.add_field(name="User ID", value=f"```{user.id}```", inline=False) # ADDED
     embed.add_field(name="Reason", value=f"```{reason}```", inline=False)
     return embed
 
 async def member_kicked(member: discord.Member, moderator, reason: str):
-    embed = discord.Embed(title="Member Kicked", color=LOG_COLORS["orange"], timestamp=datetime.now(timezone.utc))
-    embed.set_author(name=f"{member.display_name} ({member.id})", icon_url=member.display_avatar.url)
+    """Creates an embed for a member kick."""
+    embed = discord.Embed(
+        title="Member Kicked", 
+        color=LOG_COLORS["orange"], 
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_author(name=f"{member.display_name}", icon_url=member.display_avatar.url)
     embed.add_field(name="Member", value=member.mention, inline=True)
     embed.add_field(name="Moderator", value=_get_mod_mention(moderator), inline=True)
+    embed.add_field(name="User ID", value=f"```{member.id}```", inline=False) # ADDED
     embed.add_field(name="Reason", value=f"```{reason}```", inline=False)
     return embed
 
