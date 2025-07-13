@@ -49,7 +49,7 @@ class ServerListeners(commands.Cog):
         """Logs creation, deletion, or updates of webhooks."""
         if not self.cog: return
         guild = channel.guild
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.0) 
 
         try:
             audit_entry = None
@@ -58,29 +58,32 @@ class ServerListeners(commands.Cog):
                 discord.AuditLogAction.webhook_delete,
                 discord.AuditLogAction.webhook_update,
             )
+            
             async for entry in guild.audit_logs(limit=5):
                 if entry.action not in webhook_actions:
                     continue
-                
-                if (hasattr(entry.target, 'channel_id') and entry.target.channel_id == channel.id) or \
-                   (hasattr(entry.extra, 'channel') and entry.extra.channel.id == channel.id):
-                    audit_entry = entry
-                    break 
 
-            if not audit_entry: return
+                if hasattr(entry.target, "channel_id") and entry.target.channel_id == channel.id:
+                    audit_entry = entry
+                    break
+                elif hasattr(entry.before, "channel_id") and entry.before.channel_id == channel.id:
+                    audit_entry = entry
+                    break
+
+            if not audit_entry:
+                return
 
             moderator = audit_entry.user
-            webhook = audit_entry.target
-
+            
             if audit_entry.action == discord.AuditLogAction.webhook_create:
-                embed = await logembeds.webhook_created(webhook, moderator, channel)
+                embed = await logembeds.webhook_created(audit_entry.target, moderator, channel)
                 await self.cog._send_log(guild, embed, "server", "webhook_create")
             elif audit_entry.action == discord.AuditLogAction.webhook_delete:
                 embed = await logembeds.webhook_deleted(audit_entry.before, moderator, channel)
                 await self.cog._send_log(guild, embed, "server", "webhook_delete")
             elif audit_entry.action == discord.AuditLogAction.webhook_update:
                 changes = [f"`{k}` changed" for k in audit_entry.changes.before]
-                embed = await logembeds.webhook_updated(webhook, moderator, channel, changes)
+                embed = await logembeds.webhook_updated(audit_entry.target, moderator, channel, changes)
                 await self.cog._send_log(guild, embed, "server", "webhook_update")
 
         except discord.Forbidden:
