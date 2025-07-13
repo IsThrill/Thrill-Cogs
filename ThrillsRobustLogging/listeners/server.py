@@ -3,6 +3,8 @@ from redbot.core import commands
 from redbot.core.bot import Red
 from typing import TYPE_CHECKING, List, Optional
 import asyncio
+from collections import deque
+
 from .. import logembeds
 
 if TYPE_CHECKING:
@@ -15,10 +17,61 @@ class ServerListeners(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
         self.cog: "ThrillsRobustLogging" = None
+        self.processed_webhook_logs = deque(maxlen=20)
+
+    # --- Main Listeners ---
+
+    @commands.Cog.listener()
+    async def on_webhooks_update(self, channel: discord.TextChannel | discord.VoiceChannel):
+        """(RESTORED) Logs creation and updates of webhooks."""
+        if not self.cog: return
+        guild = channel.guild
+        await asyncio.sleep(1.5)
+
+        try:
+            async for entry in guild.audit_logs(limit=5):
+                if entry.id in self.processed_webhook_logs:
+                    continue
+                
+                if entry.action in (discord.AuditLogAction.webhook_create, discord.AuditLogAction.webhook_update):
+                    if hasattr(entry.target, 'channel_id') and entry.target.channel_id == channel.id:
+                        self.processed_webhook_logs.append(entry.id) 
+                        moderator = entry.user
+                        
+                        if entry.action == discord.AuditLogAction.webhook_create:
+                            embed = await logembeds.webhook_created(entry.target, moderator, channel)
+                            await self.cog._send_log(guild, embed, "server", "webhook_create")
+                        else: 
+                            changes = []
+                            for attr, before_val, after_val in entry.changes:
+                                if attr == 'name': changes.append(f"**Name:** `{before_val}` → `{after_val}`")
+                                elif attr == 'channel': changes.append(f"**Channel:** {before_val.mention} → {after_val.mention}")
+                                else: changes.append(f"**{attr.replace('_', ' ').title()}** updated")
+                            if not changes: continue
+                            embed = await logembeds.webhook_updated(entry.target, moderator, changes)
+                            await self.cog._send_log(guild, embed, "server", "webhook_update")
+                        break 
+        except discord.Forbidden:
+            pass
+
+    @commands.Cog.listener()
+    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
+        """(KEPT) Listens for audit log entries directly to reliably capture webhook deletions."""
+        if not self.cog or entry.id in self.processed_webhook_logs: return
+        
+        if entry.action == discord.AuditLogAction.webhook_delete:
+            self.processed_webhook_logs.append(entry.id) 
+            guild = entry.guild
+            moderator = entry.user
+            deleted_webhook_data = entry.before
+            channel = guild.get_channel(deleted_webhook_data.channel_id) if hasattr(deleted_webhook_data, "channel_id") else None
+            if channel:
+                embed = await logembeds.webhook_deleted(deleted_webhook_data, moderator, channel)
+                await self.cog._send_log(guild, embed, "server", "webhook_delete")
+
 
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
-        """Logs changes to core server settings."""
         if not self.cog: return
         changes: List[str] = []
         if before.name != after.name: changes.append(f"**Name:** `{before.name}` → `{after.name}`")
@@ -33,23 +86,6 @@ class ServerListeners(commands.Cog):
             except discord.Forbidden: pass
             embed = await logembeds.server_updated(after, moderator, changes)
             await self.cog._send_log(after, embed, "server", "update")
-
-
-    @commands.Cog.listener()
-    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
-        """Listens for audit log entries directly to capture webhook deletions."""
-        if not self.cog: return
-        
-        if entry.action == discord.AuditLogAction.webhook_delete:
-            guild = entry.guild
-            moderator = entry.user
-            deleted_webhook_data = entry.before
-            
-            channel = guild.get_channel(deleted_webhook_data.channel_id) if hasattr(deleted_webhook_data, "channel_id") else None
-
-            if channel:
-                embed = await logembeds.webhook_deleted(deleted_webhook_data, moderator, channel)
-                await self.cog._send_log(guild, embed, "server", "webhook_delete")
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite):
