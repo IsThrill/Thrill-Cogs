@@ -23,15 +23,15 @@ class MessageListeners(commands.Cog):
         if not message.guild or message.author.bot or not self.cog:
             return
 
-        await asyncio.sleep(0.7) # Slightly increased delay for this specific event
+        await asyncio.sleep(0.7)
         
-        audit_entry = await message.guild.audit_logs(
-            action=discord.AuditLogAction.message_delete, limit=1
-        ).find(
-            lambda e: e.target.id == message.author.id 
-            and e.extra.channel.id == message.channel.id
-            and e.extra.count == 1 # Ensures it was a single message deletion
-        )
+        audit_entry = None
+        async for entry in message.guild.audit_logs(limit=1, action=discord.AuditLogAction.message_delete):
+            if (entry.target.id == message.author.id and
+                entry.extra.channel.id == message.channel.id and
+                entry.extra.count == 1):
+                audit_entry = entry
+                break
 
         embed = None
         if audit_entry and (discord.utils.utcnow() - audit_entry.created_at).total_seconds() < 5:
@@ -55,9 +55,11 @@ class MessageListeners(commands.Cog):
         channel = messages[0].channel
         await asyncio.sleep(0.5)
         
-        audit_entry = await guild.audit_logs(
-            limit=1, action=discord.AuditLogAction.message_bulk_delete
-        ).find(lambda e: e.target.id == channel.id)
+        audit_entry = None
+        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.message_bulk_delete):
+             if entry.target.id == channel.id:
+                audit_entry = entry
+                break
 
         moderator = audit_entry.user if audit_entry else "Unknown Moderator"
 
