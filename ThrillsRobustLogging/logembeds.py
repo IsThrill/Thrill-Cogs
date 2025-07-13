@@ -1,6 +1,5 @@
 import discord
 from datetime import datetime, timezone
-from discord import AutoModTriggerType, AutoModAction 
 from typing import List
 
 # --- Color Palette for Consistency ---
@@ -13,7 +12,46 @@ LOG_COLORS = {
     "purple": 0x9B59B6    # High-level Server & Role Updates
 }
 
-# --- Message Listeners ---
+# --- AutoMod & Raw Audit Listeners ---
+
+async def automod_action_triggered(execution: "discord.AutoModAction"):
+    """Creates an embed for a triggered AutoMod rule."""
+    action_map = {
+        "block_message": "Blocked Message",
+        "send_alert_message": "Sent Alert",
+        "timeout": f"Timed Out User"
+    }
+    trigger_map = {
+        "keyword": "Matched Keyword",
+        "spam": "Detected Spam",
+        "keyword_preset": "Matched Keyword Preset",
+        "mention_spam": "Detected Mention Spam"
+    }
+
+    action_taken = action_map.get(execution.action.type.name, 'Unknown')
+    if execution.action.type.name == 'timeout':
+        action_taken = f"Timed Out User ({execution.action.duration.total_seconds() / 60:.0f}m)"
+
+    embed = discord.Embed(
+        title=f"AutoMod Rule Triggered",
+        description=f"Action Taken: **{action_taken}**",
+        color=LOG_COLORS["orange"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_author(name=execution.member.display_name, icon_url=execution.member.display_avatar.url)
+    embed.add_field(name="Triggered By", value=execution.member.mention, inline=True)
+    embed.add_field(name="In Channel", value=execution.channel.mention, inline=True)
+    embed.add_field(name="Rule Name", value=f"`{execution.rule.name}`", inline=False)
+    # Use .name to get the string representation of the enum
+    embed.add_field(name="Reason", value=f"`{trigger_map.get(execution.rule_trigger_type.name, 'Unknown')}`", inline=True)
+
+    if execution.matched_keyword:
+        embed.add_field(name="Matched Keyword", value=f"`{execution.matched_keyword}`", inline=True)
+    if execution.content:
+        embed.add_field(name="Original Message", value=f"```{discord.utils.escape_markdown(execution.content)}```"[:1024], inline=False)
+
+    embed.set_footer(text=f"User ID: {execution.member.id}")
+    return embed
 
 async def message_deleted(message: discord.Message):
     """(User Deleted) Creates an embed for a deleted message."""
@@ -535,40 +573,8 @@ async def sticker_updated(before: discord.GuildSticker, after: discord.GuildStic
     embed.set_footer(text=f"Sticker ID: {after.id}")
     return embed
 
-# --- AutoMod & Raw Audit Listeners ---
-
-async def automod_action_triggered(execution: discord.AutoModAction):
-    """Creates an embed for a triggered AutoMod rule."""
-    action_map = {
-        "block_message": "Blocked Message",
-        "send_alert_message": "Sent Alert",
-        "timeout": f"Timed Out User ({execution.action.duration.total_seconds() / 60}m)"
-    }
-    trigger_map = {
-        "keyword": "Matched Keyword", "spam": "Detected Spam",
-        "keyword_preset": "Matched Keyword Preset", "mention_spam": "Detected Mention Spam"
-    }
-
-    embed = discord.Embed(
-        title=f"AutoMod Rule Triggered",
-        description=f"Action Taken: **{action_map.get(execution.action.type, 'Unknown')}**",
-        color=LOG_COLORS["orange"],
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.set_author(name=execution.member.display_name, icon_url=execution.member.display_avatar.url)
-    embed.add_field(name="Triggered By", value=execution.member.mention, inline=True)
-    embed.add_field(name="In Channel", value=execution.channel.mention, inline=True)
-    embed.add_field(name="Rule Name", value=f"`{execution.rule.name}`", inline=False)
-    embed.add_field(name="Reason", value=f"`{trigger_map.get(execution.rule_trigger_type, 'Unknown')}`", inline=True)
-
-    if execution.matched_keyword:
-        embed.add_field(name="Matched Keyword", value=f"`{execution.matched_keyword}`", inline=True)
-    if execution.content:
-        embed.add_field(name="Original Message", value=f"```{discord.utils.escape_markdown(execution.content)}```"[:1024], inline=False)
-
-    embed.set_footer(text=f"User ID: {execution.member.id}")
-    return embed
-
+# --- Raw Audit Listeners ---
+# Note: The original raw_audit_log_entry was moved up to be with the automod one.
 async def raw_audit_log_entry(entry: discord.AuditLogEntry):
     """Creates an embed for any raw audit log entry."""
     action_str = str(entry.action).replace("AuditLogAction.", "").replace("_", " ").title()
