@@ -67,13 +67,13 @@ class MemberListeners(commands.Cog):
                     await self._cache_invites(guild)
                     return vanity_now
 
-            # --- Check Regular Invites ---
+            # Check Regular Invites
             current_invites = await guild.invites()
             cached_invites = self.invite_cache.get(guild.id, {})
             
             for invite in current_invites:
                 if invite.uses > cached_invites.get(invite.code, 0):
-                    await self._cache_invites(guild) 
+                    await self._cache_invites(guild)
                     return invite
         except discord.Forbidden:
             return None
@@ -82,10 +82,15 @@ class MemberListeners(commands.Cog):
     # --- Main Listeners ---
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        """Logs when a member joins the server with detailed invite info."""
+        """Logs when a member joins and saves their invite."""
         if not self.cog: return
+
         used_invite = await self._find_used_invite(member)
         is_new = (datetime.now(timezone.utc) - member.created_at).days <= 2
+        
+        if used_invite:
+            await self.cog.config.set_join_invite(member.guild, member.id, used_invite.code)
+
         embed = await logembeds.member_joined(member, used_invite, is_new)
         await self.cog._send_log(member.guild, embed, "members", "join")
 
@@ -100,10 +105,16 @@ class MemberListeners(commands.Cog):
             
         kick_entry = await self.cog._get_audit_log_entry(member.guild, member, discord.AuditLogAction.kick)
         if kick_entry and (discord.utils.utcnow() - kick_entry.created_at).total_seconds() < 5:
-            return 
+            return
 
-        embed = await logembeds.member_left(member)
+        tracker = await self.cog.config.get_invite_tracker(member.guild)
+        invite_code = tracker.get(str(member.id))
+
+        embed = await logembeds.member_left(member, invite_code)
         await self.cog._send_log(member.guild, embed, "members", "leave")
+
+        if invite_code:
+            await self.cog.config.clear_join_invite(member.guild, member.id)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
