@@ -21,22 +21,23 @@ class ServerListeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Caches all webhooks when the bot is ready."""
         await asyncio.sleep(10)
         for guild in self.bot.guilds:
             await self._update_webhook_cache(guild)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        """Caches webhooks when joining a new guild."""
         await self._update_webhook_cache(guild)
 
     async def _update_webhook_cache(self, guild: discord.Guild):
-        """Helper to fetch and store a snapshot of a guild's webhooks."""
         try:
             webhooks = await guild.webhooks()
             self.webhook_cache[guild.id] = {
-                wh.id: {"name": wh.name, "channel_id": wh.channel_id}
+                wh.id: {
+                    "name": wh.name,
+                    "channel_id": wh.channel_id,
+                    "type": wh.type.name.upper()
+                }
                 for wh in webhooks
             }
         except (discord.Forbidden, discord.HTTPException):
@@ -44,8 +45,8 @@ class ServerListeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.abc.GuildChannel):
-        """Handles webhook CREATION and UPDATES."""
-        if not self.cog: return
+        if not self.cog:
+            return
         await asyncio.sleep(1.5)
         guild = channel.guild
 
@@ -53,58 +54,61 @@ class ServerListeners(commands.Cog):
             async for entry in guild.audit_logs(limit=5):
                 if entry.id in self.processed_log_ids:
                     continue
-                if entry.action in (discord.AuditLogAction.webhook_create, discord.AuditLogAction.webhook_update):
-                    if hasattr(entry.target, "channel_id") and entry.target.channel_id == channel.id:
-                        self.processed_log_ids.append(entry.id)
-                        moderator = entry.user
-                        webhook = entry.target
 
-                        if entry.action == discord.AuditLogAction.webhook_create:
-                            wh_type = getattr(webhook.type, "name", "UNKNOWN").upper()
-                            embed = await logembeds.webhook_created(webhook, moderator, webhook.channel, wh_type)
-                            await self.cog._send_log(guild, embed, "server", "webhook_create")
-                        else:
-                            changes = []
-                            for change in entry.changes.after:
-                                changes.append(f"**{change[0].replace('_', ' ').title()}** updated.")
-                            embed = await logembeds.webhook_updated(webhook, moderator, changes)
-                            await self.cog._send_log(guild, embed, "server", "webhook_update")
-                        break
+                if entry.action in (
+                    discord.AuditLogAction.webhook_create,
+                    discord.AuditLogAction.webhook_update
+                ):
+                    webhook = entry.target
+                    if not hasattr(webhook, "channel_id") or webhook.channel_id != channel.id:
+                        continue
+
+                    self.processed_log_ids.append(entry.id)
+                    moderator = entry.user
+
+                    if entry.action == discord.AuditLogAction.webhook_create:
+                        wh_type = getattr(webhook.type, "name", "UNKNOWN").upper()
+                        embed = await logembeds.webhook_created(webhook, moderator, webhook.channel, wh_type)
+                        await self.cog._send_log(guild, embed, "server", "webhook_create")
+                    else:
+                        changes = [
+                            f"**{change[0].replace('_', ' ').title()}** updated."
+                            for change in entry.changes.after
+                        ]
+                        embed = await logembeds.webhook_updated(webhook, moderator, changes)
+                        await self.cog._send_log(guild, embed, "server", "webhook_update")
+                    break
         except Exception:
             pass
-        
+
         await self._update_webhook_cache(guild)
 
     @commands.Cog.listener()
     async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
-        """Handles webhook DELETIONS reliably."""
-        if entry.action != discord.AuditLogAction.webhook_delete or not self.cog or entry.id in self.processed_log_ids:
+        if (
+            entry.action != discord.AuditLogAction.webhook_delete
+            or not self.cog
+            or entry.id in self.processed_log_ids
+        ):
             return
 
         self.processed_log_ids.append(entry.id)
         guild = entry.guild
         moderator = entry.user
+        webhook_id = getattr(entry.target, 'id', None)
 
-        webhook_id = getattr(entry.before, 'id', None)
-        if not webhook_id:
-            return
+        cached = self.webhook_cache.get(guild.id, {}).pop(webhook_id, None)
+        name = getattr(entry.target, "name", None) or (cached.get("name") if cached else "Unknown Webhook")
 
-        cached_data = self.webhook_cache.get(guild.id, {}).pop(webhook_id, None)
-        
-        name = "Unknown Webhook"
-        channel = None
-        
-        if cached_data:
-            name = cached_data.get("name", "Unknown Webhook")
-            channel = guild.get_channel(cached_data.get("channel_id"))
-        
-        if not channel and hasattr(entry.extra, "channel"):
-            channel = entry.extra.channel
-            
+        channel = getattr(entry.extra, "channel", None)
+        if not channel and cached:
+            channel_id = cached.get("channel_id")
+            channel = guild.get_channel(channel_id) if channel_id else None
+
         if channel:
             embed = await logembeds.webhook_deleted(None, moderator, channel, name=name)
             await self.cog._send_log(guild, embed, "server", "webhook_delete")
-        
+
         await self._update_webhook_cache(guild)
 
     # --- Other Server Event Listeners ---
