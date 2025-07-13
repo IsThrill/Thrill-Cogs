@@ -2,10 +2,10 @@ import discord
 from redbot.core import commands
 from redbot.core.bot import Red
 from typing import TYPE_CHECKING
+from .. import logembeds 
 
 if TYPE_CHECKING:
     from ..core import ThrillsRobustLogging
-    from .. import logembeds
 
 class AutoModListeners(commands.Cog):
     """
