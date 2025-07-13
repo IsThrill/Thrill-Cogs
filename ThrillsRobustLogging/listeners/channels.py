@@ -16,18 +16,13 @@ class ChannelListeners(commands.Cog):
         self.bot = bot
         self.cog: "ThrillsRobustLogging" = None
 
-    async def _get_audit_log_entry(self, guild: discord.Guild, target_id: int, action: discord.AuditLogAction) -> Optional[discord.AuditLogEntry]:
-        """A helper function to fetch the latest audit log entry for a specific action."""
-        await asyncio.sleep(0.5)
-        entry = await guild.audit_logs(limit=5, action=action).find(lambda e: e.target.id == target_id)
-        return entry
-
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
         """Logs when a channel, category, or voice channel is created."""
         if not self.cog or isinstance(channel, discord.Thread): return
 
-        entry = await self._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_create)
+        # This now correctly uses the centralized helper from core.py
+        entry = await self.cog._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_create)
         moderator = entry.user if entry else "Unknown Moderator"
         
         embed = await logembeds.channel_created(channel, moderator)
@@ -38,7 +33,7 @@ class ChannelListeners(commands.Cog):
         """Logs when a channel, category, or voice channel is deleted."""
         if not self.cog or isinstance(channel, discord.Thread): return
 
-        entry = await self._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_delete)
+        entry = await self.cog._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_delete)
         moderator = entry.user if entry else "Unknown Moderator"
 
         embed = await logembeds.channel_deleted(channel, moderator)
@@ -66,7 +61,7 @@ class ChannelListeners(commands.Cog):
                 changes.append(f"**Slowmode:** `{before.slowmode_delay}s` → `{after.slowmode_delay}s`")
 
         if changes:
-            entry = await self._get_audit_log_entry(after.guild, after.id, discord.AuditLogAction.channel_update)
+            entry = await self.cog._get_audit_log_entry(after.guild, after.id, discord.AuditLogAction.channel_update)
             moderator = entry.user if entry else "Unknown Moderator"
             embed = await logembeds.channel_updated(after, moderator, changes)
             await self.cog._send_log(after.guild, embed, "channels", "update")
@@ -84,7 +79,7 @@ class ChannelListeners(commands.Cog):
         """Logs when a thread is deleted."""
         if not self.cog: return
         
-        entry = await self._get_audit_log_entry(thread.guild, thread.id, discord.AuditLogAction.thread_delete)
+        entry = await self.cog._get_audit_log_entry(thread.guild, thread.id, discord.AuditLogAction.thread_delete)
         moderator = entry.user if entry else "Unknown"
 
         embed = await logembeds.thread_deleted(thread, moderator)
