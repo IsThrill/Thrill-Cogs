@@ -142,16 +142,17 @@ async def member_joined(member: discord.Member, invite: discord.Invite, is_new: 
     # --- Member Details ---
     embed.add_field(name="Account Age", value=f"<t:{int(member.created_at.timestamp())}:R>", inline=True)
     embed.add_field(name="Total Members", value=f"{member.guild.member_count}", inline=True)
-    embed.add_field(name="User ID", value=f"`{member.id}`", inline=False)
+    embed.add_field(name="User ID", value=f"```{member.id}```", inline=False)
 
+    # --- Invite Information ---
     invite_info = "Could not determine invite."
     if invite:
-        invite_link = f"https://discord.gg/{invite.code}"
-        if invite.inviter: 
+        invite_link = f"[https://discord.gg/](https://discord.gg/){invite.code}"
+        if invite.inviter: # Regular invite
             invite_info = (f"**Invited by:** {invite.inviter.mention}\n"
                            f"**Invite:** {invite_link} (`{invite.uses}` uses)")
-        else: 
-            invite_info = f"Joined via the server's vanity URL:\n{invite_link}"
+        else: # Vanity URL
+            invite_info = f"{invite_link}"
 
     embed.add_field(name="Invite Information", value=invite_info, inline=False)
         
@@ -174,11 +175,11 @@ async def member_left(member: discord.Member, invite_code: Optional[str]):
         embed.add_field(name="Joined On", value=f"<t:{int(member.joined_at.timestamp())}:D>", inline=True)
     
     if invite_code:
-        embed.add_field(name="Joined Via", value=f"https://discord.gg/{invite_code}", inline=True)
+        embed.add_field(name="Invite Information", value=f"[https://discord.gg/](https://discord.gg/){invite_code}", inline=True)
     else:
         embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:D>", inline=True)
         
-    embed.add_field(name="User ID", value=f"`{member.id}`", inline=False)
+    embed.add_field(name="User ID", value=f"```{member.id}```", inline=False)
 
     # --- Roles ---
     roles = [r.mention for r in member.roles if r.name != "@everyone"]
