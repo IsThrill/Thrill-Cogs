@@ -2,6 +2,7 @@ from redbot.core import Config
 
 # This dictionary defines the default settings for a guild.
 DEFAULT_GUILD_SETTINGS = {
+    "invite_tracker": {}, 
     "log_channels": {
         "default": None,
         "messages": None,
@@ -15,7 +16,6 @@ DEFAULT_GUILD_SETTINGS = {
         "automod": None,
         "raw_audit": None,
     },
-    # A complete set of toggles for every type of event.
     "log_toggles": {
         "messages": {
             "delete": True,
@@ -116,3 +116,18 @@ class TRLConfig:
             if category not in toggles:
                 toggles[category] = {}
             toggles[category][setting] = value
+
+    # --- Invite Tracker Management ---
+    async def get_invite_tracker(self, guild):
+        return await self.config.guild(guild).invite_tracker()
+
+    async def set_join_invite(self, guild, member_id, invite_code):
+        """Stores the invite code a member used to join."""
+        async with self.config.guild(guild).invite_tracker() as tracker:
+            tracker[str(member_id)] = invite_code
+
+    async def clear_join_invite(self, guild, member_id):
+        """Removes a member's invite data after they leave."""
+        async with self.config.guild(guild).invite_tracker() as tracker:
+            if str(member_id) in tracker:
+                del tracker[str(member_id)]
