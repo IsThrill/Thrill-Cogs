@@ -3,7 +3,7 @@ from redbot.core import commands
 from redbot.core.bot import Red
 from typing import TYPE_CHECKING, List, Optional
 import asyncio
-from .. import logembeds 
+from .. import logembeds
 
 if TYPE_CHECKING:
     from ..core import ThrillsRobustLogging
@@ -21,8 +21,7 @@ class ChannelListeners(commands.Cog):
         """Logs when a channel, category, or voice channel is created."""
         if not self.cog or isinstance(channel, discord.Thread): return
 
-        # This now correctly uses the centralized helper from core.py
-        entry = await self.cog._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_create)
+        entry = await self.cog._get_audit_log_entry(channel.guild, channel, discord.AuditLogAction.channel_create)
         moderator = entry.user if entry else "Unknown Moderator"
         
         embed = await logembeds.channel_created(channel, moderator)
@@ -33,7 +32,7 @@ class ChannelListeners(commands.Cog):
         """Logs when a channel, category, or voice channel is deleted."""
         if not self.cog or isinstance(channel, discord.Thread): return
 
-        entry = await self.cog._get_audit_log_entry(channel.guild, channel.id, discord.AuditLogAction.channel_delete)
+        entry = await self.cog._get_audit_log_entry(channel.guild, channel, discord.AuditLogAction.channel_delete)
         moderator = entry.user if entry else "Unknown Moderator"
 
         embed = await logembeds.channel_deleted(channel, moderator)
@@ -61,7 +60,7 @@ class ChannelListeners(commands.Cog):
                 changes.append(f"**Slowmode:** `{before.slowmode_delay}s` → `{after.slowmode_delay}s`")
 
         if changes:
-            entry = await self.cog._get_audit_log_entry(after.guild, after.id, discord.AuditLogAction.channel_update)
+            entry = await self.cog._get_audit_log_entry(after.guild, after, discord.AuditLogAction.channel_update)
             moderator = entry.user if entry else "Unknown Moderator"
             embed = await logembeds.channel_updated(after, moderator, changes)
             await self.cog._send_log(after.guild, embed, "channels", "update")
@@ -79,8 +78,8 @@ class ChannelListeners(commands.Cog):
         """Logs when a thread is deleted."""
         if not self.cog: return
         
-        entry = await self.cog._get_audit_log_entry(thread.guild, thread.id, discord.AuditLogAction.thread_delete)
-        moderator = entry.user if entry else "Unknown"
+        entry = await self.cog._get_audit_log_entry(thread.guild, thread, discord.AuditLogAction.thread_delete)
+        moderator = entry.user if entry else "Unknown Moderator"
 
         embed = await logembeds.thread_deleted(thread, moderator)
         await self.cog._send_log(thread.guild, embed, "channels", "thread_delete")
@@ -101,5 +100,7 @@ class ChannelListeners(commands.Cog):
             changes.append(f"**Thread was {action}**")
             
         if changes:
-            embed = await logembeds.thread_updated(after, changes)
+            entry = await self.cog._get_audit_log_entry(after.guild, after, discord.AuditLogAction.thread_update)
+            moderator = entry.user if entry else "Unknown" 
+            embed = await logembeds.thread_updated(after, moderator, changes)
             await self.cog._send_log(after.guild, embed, "channels", "thread_update")
