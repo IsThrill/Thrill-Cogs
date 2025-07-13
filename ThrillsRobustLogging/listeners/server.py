@@ -16,7 +16,6 @@ class ServerListeners(commands.Cog):
         self.bot = bot
         self.cog: "ThrillsRobustLogging" = None
 
-
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
         """Logs changes to core server settings."""
@@ -54,17 +53,19 @@ class ServerListeners(commands.Cog):
 
         try:
             audit_entry = None
-            action_types = [
+            webhook_actions = (
                 discord.AuditLogAction.webhook_create,
                 discord.AuditLogAction.webhook_delete,
-                discord.AuditLogAction.webhook_update
-            ]
-            async for entry in guild.audit_logs(limit=1, action_types=action_types):
-                # Check if the entry is related to the updated channel
+                discord.AuditLogAction.webhook_update,
+            )
+            async for entry in guild.audit_logs(limit=5):
+                if entry.action not in webhook_actions:
+                    continue
+                
                 if (hasattr(entry.target, 'channel_id') and entry.target.channel_id == channel.id) or \
                    (hasattr(entry.extra, 'channel') and entry.extra.channel.id == channel.id):
                     audit_entry = entry
-                    break
+                    break 
 
             if not audit_entry: return
 
