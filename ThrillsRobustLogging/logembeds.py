@@ -403,7 +403,7 @@ async def voice_moved(member: discord.Member, before: discord.VoiceChannel, afte
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
-async def voice_server_muted(member: discord.Member, channel: discord.VoiceChannel, muted: bool):
+async def voice_server_muted(member: discord.Member, channel: discord.VoiceChannel, moderator, muted: bool):
     """Creates an embed for a server mute/unmute action."""
     action = "muted in" if muted else "unmuted in"
     color = LOG_COLORS["orange"] if muted else LOG_COLORS["green"]
@@ -412,11 +412,12 @@ async def voice_server_muted(member: discord.Member, channel: discord.VoiceChann
         color=color,
         timestamp=datetime.now(timezone.utc)
     )
+    embed.add_field(name="Moderator", value=moderator.mention if isinstance(moderator, discord.Member) else "Unknown")
     embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
-async def voice_server_deafened(member: discord.Member, channel: discord.VoiceChannel, deafened: bool):
+async def voice_server_deafened(member: discord.Member, channel: discord.VoiceChannel, moderator, deafened: bool):
     """Creates an embed for a server deafen/undeafen action."""
     action = "deafened in" if deafened else "undeafened in"
     color = LOG_COLORS["orange"] if deafened else LOG_COLORS["green"]
@@ -425,6 +426,7 @@ async def voice_server_deafened(member: discord.Member, channel: discord.VoiceCh
         color=color,
         timestamp=datetime.now(timezone.utc)
     )
+    embed.add_field(name="Moderator", value=moderator.mention if isinstance(moderator, discord.Member) else "Unknown")
     embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
