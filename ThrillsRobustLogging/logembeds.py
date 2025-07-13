@@ -1,6 +1,6 @@
 import discord
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional 
 
 # --- Color Palette for Consistency ---
 LOG_COLORS = {
@@ -126,57 +126,37 @@ async def messages_purged(count: int, channel: discord.TextChannel, moderator: d
 # --- Member Listeners ---
 
 async def member_joined(member: discord.Member, invite: discord.Invite, is_new: bool):
-    """Creates an embed for a new member with invite tracking."""
-    
     description = f"**{member.mention} joined the server**"
     if is_new:
         description += " <:thrillswarning:1248039750012502157>"
-
-    embed = discord.Embed(
-        description=description,
-        color=LOG_COLORS["green"],
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(description=description, color=LOG_COLORS["green"], timestamp=datetime.now(timezone.utc))
     embed.set_thumbnail(url=member.display_avatar.url)
-    
     embed.add_field(name="Account Age", value=f"<t:{int(member.created_at.timestamp())}:R>", inline=True)
     embed.add_field(name="Total Members", value=f"{member.guild.member_count}", inline=True)
-    
     invite_info = "Could not determine invite."
     if invite:
-        if invite.inviter: 
-            invite_info = (f"**Invited by:** {invite.inviter.mention}\n"
+        if invite.inviter:
+            invite_info = (f"**Invited by:** {_get_mod_mention(invite.inviter)}\n"
                            f"**Invite Code:** `{invite.code}` (`{invite.uses}` uses)")
-        else: 
+        else:
             invite_info = f"Joined via the server's vanity URL (`{invite.code}`)"
-
     embed.add_field(name="Invite Information", value=invite_info, inline=False)
-        
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
 async def member_left(member: discord.Member, invite_code: Optional[str]):
-    """Creates an embed for a member who left, including their join invite."""
-    embed = discord.Embed(
-        description=f"**{member.mention} left the server**",
-        color=LOG_COLORS["red"],
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(description=f"**{member.mention} left the server**", color=LOG_COLORS["red"], timestamp=datetime.now(timezone.utc))
     embed.set_thumbnail(url=member.display_avatar.url)
-
     if member.joined_at:
         embed.add_field(name="Member For", value=f"<t:{int(member.joined_at.timestamp())}:R>", inline=True)
         embed.add_field(name="Joined On", value=f"<t:{int(member.joined_at.timestamp())}:D>", inline=True)
-
     if invite_code:
         embed.add_field(name="Joined Via", value=f"`{invite_code}`", inline=True)
     else:
         embed.add_field(name="Account Created", value=f"<t:{int(member.created_at.timestamp())}:D>", inline=True)
-
     roles = [r.mention for r in member.roles if r.name != "@everyone"]
     if roles:
         embed.add_field(name=f"Roles [{len(roles)}]", value=" ".join(roles)[:1024], inline=False)
-        
     embed.set_footer(text=f"User ID: {member.id}")
     return embed
 
