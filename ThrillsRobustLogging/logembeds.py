@@ -1,6 +1,6 @@
 import discord
 from datetime import datetime, timezone
-from discord.enums import AutoModTriggerType, AutoModAction
+from discord import AutoModTriggerType, AutoModAction # <--- FIXED: Changed this import line
 from typing import List
 
 # --- Color Palette for Consistency ---
@@ -654,3 +654,4 @@ async def stage_ended(stage: discord.StageInstance, moderator):
     )
     embed.add_field(name="Ended By", value=moderator.mention if isinstance(moderator, discord.Member) else "Unknown", inline=False)
     return embed
+}
