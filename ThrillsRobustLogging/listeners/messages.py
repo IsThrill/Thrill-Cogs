@@ -4,10 +4,10 @@ from redbot.core.bot import Red
 from typing import TYPE_CHECKING, List, Optional
 import asyncio
 from io import StringIO
+from .. import logembeds 
 
 if TYPE_CHECKING:
     from ..core import ThrillsRobustLogging
-    from .. import logembeds
 
 class MessageListeners(commands.Cog):
     """
