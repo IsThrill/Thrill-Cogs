@@ -37,8 +37,7 @@ class ServerListeners(commands.Cog):
                     "name": wh.name,
                     "channel_id": wh.channel_id,
                     "type": wh.type.name.upper()
-                }
-                for wh in webhooks
+                } for wh in webhooks
             }
         except (discord.Forbidden, discord.HTTPException):
             self.webhook_cache[guild.id] = {}
@@ -71,10 +70,11 @@ class ServerListeners(commands.Cog):
                         embed = await logembeds.webhook_created(webhook, moderator, webhook.channel, wh_type)
                         await self.cog._send_log(guild, embed, "server", "webhook_create")
                     else:
-                        changes = [
-                            f"**{change[0].replace('_', ' ').title()}** updated."
-                            for change in entry.changes.after
-                        ]
+                        changes = []
+                        for key, before_val in entry.changes.before.items():
+                            after_val = entry.changes.after.get(key)
+                            if before_val != after_val:
+                                changes.append(f"**{key.replace('_', ' ').title()}**: `{before_val}` → `{after_val}`")
                         embed = await logembeds.webhook_updated(webhook, moderator, changes)
                         await self.cog._send_log(guild, embed, "server", "webhook_update")
                     break
