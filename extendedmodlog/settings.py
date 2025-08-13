@@ -139,6 +139,13 @@ inv_settings = {
         "emoji": "",
         "embed": True,
     },
+    "webhook_update": {
+        "enabled": False,
+        "channel": None,
+        "colour": None,
+        "emoji": "\N{LINK SYMBOL}",
+        "embed": True,
+    },
     "commands_used": {
         "enabled": False,
         "channel": None,
@@ -164,3 +171,4 @@ inv_settings = {
     "ignored_channels": [],
     "invite_links": {},
 }
+
