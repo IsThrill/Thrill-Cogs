@@ -96,6 +96,7 @@ class EventChooser(Converter):
             "thread_create",
             "thread_delete",
             "thread_change",
+            "webhook_update",
         ]
         result = None
         if argument.startswith("member_"):
@@ -2671,5 +2672,6 @@ class EventMixin:
             await channel.send(embed=embed, allowed_mentions=self.allowed_mentions)
         else:
             await channel.send(msg, allowed_mentions=self.allowed_mentions)
+
 
 
