@@ -710,78 +710,82 @@ class EventMixin:
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.TextChannel) -> None:
         """Listener for webhook creation, deletion, and updates."""
+        # All the following code is now correctly indented to be inside the function
         guild = channel.guild
         event = "webhook_update"
 
-    if guild.id not in self.settings:
-        self.settings[guild.id] = await self.config.guild(guild).all()
-    if not self.settings[guild.id][event]["enabled"]:
-        return
+        if guild.id not in self.settings:
+            self.settings[guild.id] = await self.config.guild(guild).all()
+        if not self.settings[guild.id][event]["enabled"]:
+            return
 
-    if not guild.me.guild_permissions.view_audit_log:
-        return
+        if not guild.me.guild_permissions.view_audit_log:
+            return
 
-    action = None
-    entry = None
-    try:
-        async for e in guild.audit_logs(
-            limit=1,
-            actions=[
-                discord.AuditLogAction.webhook_create,
-                discord.AuditLogAction.webhook_delete,
-                discord.AuditLogAction.webhook_update,
-            ],
-        ):
-            if e.target.channel.id == channel.id:
-                action = e.action
-                entry = e
-                break
-    except discord.Forbidden:
-        return
-    
-    if not entry:
-        return
+        action = None
+        entry = None
+        try:
+            async for e in guild.audit_logs(
+                limit=1,
+                actions=[
+                    discord.AuditLogAction.webhook_create,
+                    discord.AuditLogAction.webhook_delete,
+                    discord.AuditLogAction.webhook_update,
+                ],
+            ):
+                # Check if this audit log entry is for the channel that triggered the event
+                if e.target.channel.id == channel.id:
+                    action = e.action
+                    entry = e
+                    break
+        except discord.Forbidden:
+            return
 
-    if action == discord.AuditLogAction.webhook_create:
-        embed = discord.Embed(
-            title="Webhook Created",
-            description=f"Webhook `{entry.target.name}` was created by {entry.user.mention}.",
-            color=await self.config.guild(guild).webhook_update.colour(),
-        )
-        embed.add_field(name="Channel", value=channel.mention)
-        embed.set_footer(text=f"ID: {entry.target.id}")
-    
-    elif action == discord.AuditLogAction.webhook_delete:
-        embed = discord.Embed(
-            title="Webhook Deleted",
-            description=f"Webhook `{entry.target.name}` was deleted by {entry.user.mention}.",
-            color=await self.config.guild(guild).webhook_update.colour(),
-        )
-        embed.add_field(name="Channel", value=channel.mention)
-        embed.set_footer(text=f"ID: {entry.target.id}")
+        if not entry:
+            return
 
-    elif action == discord.AuditLogAction.webhook_update:
-        before = entry.before
-        after = entry.after
-        changes = []
-        if before.name != after.name:
-            changes.append(f"**Name:**\n- `{before.name}`\n+ `{after.name}`")
-        if before.channel != after.channel:
-            changes.append(f"**Channel:**\n- {before.channel.mention}\n+ {after.channel.mention}")
-        if not changes:
-            return 
-        
-        embed = discord.Embed(
-            title="Webhook Updated",
-            description=f"Webhook `{after.name}` was updated by {entry.user.mention}.\n\n" + "\n".join(changes),
-            color=await self.config.guild(guild).webhook_update.colour(),
-        )
-        embed.set_footer(text=f"ID: {entry.target.id}")
+        if action == discord.AuditLogAction.webhook_create:
+            embed = discord.Embed(
+                title="Webhook Created",
+                description=f"Webhook `{entry.target.name}` was created by {entry.user.mention}.",
+                color=await self.config.guild(guild).webhook_update.colour(),
+            )
+            embed.add_field(name="Channel", value=channel.mention)
+            embed.set_footer(text=f"ID: {entry.target.id}")
 
-    else:
-        return 
+        elif action == discord.AuditLogAction.webhook_delete:
+            embed = discord.Embed(
+                title="Webhook Deleted",
+                description=f"Webhook `{entry.target.name}` was deleted by {entry.user.mention}.",
+                color=await self.config.guild(guild).webhook_update.colour(),
+            )
+            embed.add_field(name="Channel", value=channel.mention)
+            embed.set_footer(text=f"ID: {entry.target.id}")
 
-    await self.log_channel_entry(guild, event, embed=embed)
+        elif action == discord.AuditLogAction.webhook_update:
+            before = entry.before
+            after = entry.after
+            changes = []
+            if before.name != after.name:
+                changes.append(f"**Name:**\n- `{before.name}`\n+ `{after.name}`")
+            if before.channel != after.channel:
+                changes.append(f"**Channel:**\n- {before.channel.mention}\n+ {after.channel.mention}")
+            if not changes:
+                return
+
+            embed = discord.Embed(
+                title="Webhook Updated",
+                description=f"Webhook `{after.name}` was updated by {entry.user.mention}.\n\n"
+                + "\n".join(changes),
+                color=await self.config.guild(guild).webhook_update.colour(),
+            )
+            embed.set_footer(text=f"ID: {entry.target.id}")
+
+        else:
+            return
+
+        await self.log_channel_entry(guild, event, embed=embed)
+
 
     
     @commands.Cog.listener()
@@ -2667,4 +2671,5 @@ class EventMixin:
             await channel.send(embed=embed, allowed_mentions=self.allowed_mentions)
         else:
             await channel.send(msg, allowed_mentions=self.allowed_mentions)
+
 
