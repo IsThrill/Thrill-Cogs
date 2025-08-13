@@ -149,6 +149,7 @@ class ExtendedModLog(EventMixin, commands.Cog):
             "thread_create": _("Thread created"),
             "thread_delete": _("Thread deleted"),
             "thread_change": _("Thread changed"),
+            "webhook_update": _("Webhook changes"),
         }
         msg = _("Setting for {guild}\n Modlog Channel {channel}\n\n").format(
             guild=guild.name, channel=modlog_channel
@@ -797,3 +798,4 @@ class ExtendedModLog(EventMixin, commands.Cog):
             await ctx.send(_("Bots will no longer be tracked in voice update logs."))
         else:
             await ctx.send(_("Bots will be tracked in voice update logs."))
+
