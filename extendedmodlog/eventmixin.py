@@ -711,7 +711,6 @@ class EventMixin:
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.TextChannel) -> None:
         """Listener for webhook creation, deletion, and updates."""
-        # All the following code is now correctly indented to be inside the function
         guild = channel.guild
         event = "webhook_update"
 
@@ -734,7 +733,6 @@ class EventMixin:
                     discord.AuditLogAction.webhook_update,
                 ],
             ):
-                # Check if this audit log entry is for the channel that triggered the event
                 if e.target.channel.id == channel.id:
                     action = e.action
                     entry = e
@@ -786,7 +784,6 @@ class EventMixin:
             return
 
         await self.log_channel_entry(guild, event, embed=embed)
-
 
     
     @commands.Cog.listener()
@@ -2672,6 +2669,7 @@ class EventMixin:
             await channel.send(embed=embed, allowed_mentions=self.allowed_mentions)
         else:
             await channel.send(msg, allowed_mentions=self.allowed_mentions)
+
 
 
 
