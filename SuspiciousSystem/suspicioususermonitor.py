@@ -174,3 +174,45 @@ class SuspiciousUserMonitor(commands.Cog):
         """Set the role to be mentioned in the alert."""
         await self.config.guild(ctx.guild).mention_role.set(role.id)
         await ctx.send(f"Mention role set to {role.mention}.")
+        
+    @suspiciousmonitor.command(name="settings")
+    @commands.has_permissions(administrator=True)
+    async def show_settings(self, ctx: commands.Context):
+        """Display the current settings for the Suspicious User Monitor."""
+        settings = await self.config.guild(ctx.guild).all()
+        
+        suspicious_role_id = settings.get("suspicious_role")
+        alert_channel_id = settings.get("alert_channel")
+        mention_role_id = settings.get("mention_role")
+        min_account_age = settings.get("min_account_age")
+
+        suspicious_role = ctx.guild.get_role(suspicious_role_id) if suspicious_role_id else None
+        alert_channel = ctx.guild.get_channel(alert_channel_id) if alert_channel_id else None
+        mention_role = ctx.guild.get_role(mention_role_id) if mention_role_id else None
+
+        embed = discord.Embed(
+            title="Suspicious User Monitor Settings",
+            color=await ctx.embed_color()
+        )
+        embed.add_field(
+            name="Suspicious Role", 
+            value=suspicious_role.mention if suspicious_role else "Not set",
+            inline=False
+        )
+        embed.add_field(
+            name="Alert Channel", 
+            value=alert_channel.mention if alert_channel else "Not set",
+            inline=False
+        )
+        embed.add_field(
+            name="Mention Role", 
+            value=mention_role.mention if mention_role else "Not set",
+            inline=False
+        )
+        embed.add_field(
+            name="Minimum Account Age", 
+            value=f"{min_account_age} days",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
