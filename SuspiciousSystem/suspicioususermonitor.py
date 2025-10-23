@@ -23,12 +23,16 @@ class QuestionnaireModal(Modal):
         
         # Add up to 5 questions (Discord modal limit)
         for i, question in enumerate(questions[:5]):
+            placeholder_text = None
+            if len(question) > 45:
+                placeholder_text = question[:100]  
+
             text_input = TextInput(
-                label=question[:45],  # Discord label character limit
+                label=question[:45],  
                 style=discord.TextStyle.paragraph,
                 required=True,
                 max_length=500,
-                placeholder=question if len(question) > 45 else None
+                placeholder=placeholder_text  
             )
             self.text_inputs.append(text_input)
             self.add_item(text_input)
@@ -1339,3 +1343,4 @@ class SuspiciousUserMonitor(commands.Cog):
         
         result = await self.mark_user_suspicious(interaction.guild, user, interaction.user)
         await interaction.followup.send(result["message"], ephemeral=True)
+
