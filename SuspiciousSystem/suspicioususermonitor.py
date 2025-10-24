@@ -1,7 +1,8 @@
 import discord
 from discord import app_commands
 from discord.ui import Button, View, Modal, TextInput
-from redbot.core import commands, Config, tasks
+from redbot.core import commands, Config
+from discord.ext import tasks
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box
 from datetime import datetime, timedelta
@@ -1601,3 +1602,4 @@ async def _send_kick_error_embed(self, guild, member, user_id, errtype: str, det
         
         result = await self.mark_user_suspicious(interaction.guild, user, interaction.user)
         await interaction.followup.send(result["message"], ephemeral=True)
+
