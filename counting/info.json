@@ -1,0 +1,32 @@
+{
+    "author": [
+        "isthrill"
+    ],
+    "name": "Counting",
+    "install_msg": "Thanks for installing the Counting cog!\n\nCheck `[p]countingset` to get started. Set a channel to begin counting!\n\n📚 Documentation: <https://github.com/IsThrill/Thrill-Cogs/tree/master/counting/README.md>\n\n**Credits:**\n- Originally created by ltzmax: <https://github.com/ltzmax/maxcogs>\n- Forked and enhanced by IsThrill",
+    "description": "Count from 1 to infinity! Enhanced fork with manual count setting and retroactive leaderboard building from message history.",
+    "short": "Count from 1 to infinity with advanced features!",
+    "hidden": false,
+    "min_bot_version": "3.5.13",
+    "tags": [
+        "counting",
+        "count",
+        "game",
+        "leaderboard"
+    ],
+    "permissions": [
+        "manage_messages",
+        "read_message_history"
+    ],
+    "requirements": [
+        "tabulate",
+        "emoji>=2.0.0"
+    ],
+    "min_python_version": [
+        3,
+        9,
+        0
+    ],
+    "end_user_data_statement": "This cog does not store any End User Data.",
+    "type": "COG"
+}
