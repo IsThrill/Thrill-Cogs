@@ -2,7 +2,7 @@
 MIT License
 
 Copyright (c) 2024-present IsThrill
-Originally created by ltzmax (2022-2024)
+Originally created by ltzmax (2022-2025)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -201,3 +201,4 @@ class UserCommands(commands.Cog):
                     display_names[uid] = f"Unknown User ({uid})"
 
         return display_names
+
