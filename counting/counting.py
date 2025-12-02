@@ -1,7 +1,8 @@
 """
 MIT License
 
-Copyright (c) 2022-present ltzmax
+Copyright (c) 2024-present IsThrill
+Originally created by ltzmax (2022-2024)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -36,10 +37,6 @@ from .settings import SettingsManager
 
 class Counting(UserCommands, AdminCommands, commands.Cog):
     """Count from 1 to infinity!"""
-
-    __version__: Final[str] = "3.1.0"
-    __author__: Final[str] = "MAX"
-    __docs__: Final[str] = "https://github.com/ltzmax/maxcogs/tree/master/counting/README.md"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -106,4 +103,5 @@ class Counting(UserCommands, AdminCommands, commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
+
         await self.event_handlers.on_raw_message_edit(payload)
