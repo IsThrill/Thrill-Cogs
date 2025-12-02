@@ -2,7 +2,7 @@
 MIT License
 
 Copyright (c) 2024-present IsThrill
-Originally created by ltzmax (2022-2024)
+Originally created by ltzmax (2022-2025)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -879,3 +879,4 @@ class AdminCommands(commands.Cog):
             )
             embeds.append(embed)
         await SimpleMenu(pages=embeds, disable_after_timeout=True, timeout=120).start(ctx)
+
