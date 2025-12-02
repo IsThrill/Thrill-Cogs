@@ -589,7 +589,6 @@ class AdminCommands(commands.Cog):
         status_msg = await ctx.send("🔄 Starting leaderboard build... This may take a while.")
         
         try:
-            # Initialize variables
             temp_leaderboard = {}
             if merge:
                 temp_leaderboard = settings.get("leaderboard", {}).copy()
@@ -600,56 +599,42 @@ class AdminCommands(commands.Cog):
             highest_count_found = 0
             skipped_non_numeric = 0
             
-            # Scan messages - LENIENT MODE for historical data
             async for message in channel.history(limit=None, oldest_first=True):
                 message_count += 1
                 
-                # Update status every 100 messages
                 if message_count % 100 == 0:
                     await status_msg.edit(
                         content=f"🔄 Scanning messages... {cf.humanize_number(message_count)} processed, "
                         f"{cf.humanize_number(valid_counts)} valid counts found (currently at {expected_next - 1})."
                     )
                 
-                # Skip bots - they don't count
                 if message.author.bot:
                     continue
                 
-                # Check if message is a digit - if not, just skip without resetting
                 if not message.content.isdigit():
                     skipped_non_numeric += 1
                     continue
                 
                 count_value = int(message.content)
                 
-                # Check if it matches expected count
                 if count_value == expected_next:
-                    # Valid count!
                     valid_counts += 1
                     if count_value > highest_count_found:
                         highest_count_found = count_value
                     
-                    # Update temp leaderboard
                     user_id = message.author.id
                     temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
                     
-                    # Move to next expected number
                     expected_next += 1
                     
                 elif count_value == 1:
-                    # Someone started a new count sequence (after a ruin)
-                    # Credit them and reset tracking
                     valid_counts += 1
                     user_id = message.author.id
                     temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
                     expected_next = 2
-                    
-                # If count doesn't match and isn't 1, just skip it (likely a mistake or ruin)
             
-            # Save the new leaderboard
             await self.settings.update_guild(ctx.guild, "leaderboard", temp_leaderboard)
             
-            # Build summary embed
             embed = discord.Embed(
                 title="✅ Leaderboard Build Complete",
                 color=discord.Color.green(),
@@ -666,7 +651,6 @@ class AdminCommands(commands.Cog):
                 inline=False
             )
             
-            # Show top 5
             if temp_leaderboard:
                 sorted_lb = sorted(temp_leaderboard.items(), key=lambda x: x[1], reverse=True)[:5]
                 top_5_text = ""
@@ -681,7 +665,6 @@ class AdminCommands(commands.Cog):
                     inline=False
                 )
             
-            # Current count info
             current_count = settings.get("count", 0)
             embed.add_field(
                 name="ℹ️ Current Count Status",
@@ -691,13 +674,12 @@ class AdminCommands(commands.Cog):
                 inline=False
             )
             
-            # Add explanation
             embed.add_field(
                 name="ℹ️ How Scanning Works",
                 value="This scanner uses **lenient mode** for historical data:\n"
                       "• Skips non-numeric messages without resetting\n"
                       "• Ignores current rules (same-user, account age)\n"
-                      "• Credits users for all valid consecutive counts\n"
+                      "• Credits users for all valid consecutive counts\n."
                       "• Treats '1' as a new sequence start after ruins",
                 inline=False
             )
@@ -710,8 +692,8 @@ class AdminCommands(commands.Cog):
                           f"**Possible reasons:**\n"
                           f"• Count was manually adjusted\n"
                           f"• Messages were deleted\n"
-                          f"• Count was ruined and continued from wrong number\n\n"
-                          f"If you trust the scan results, use:\n"
+                          f"• Count was ruined and continued from wrong number\n\n."
+                          f"If you trust the scan results, use:\n."
                           f"`{ctx.clean_prefix}countingset reset setcount {highest_count_found}`",
                     inline=False
                 )
@@ -887,3 +869,4 @@ class AdminCommands(commands.Cog):
             )
             embeds.append(embed)
         await SimpleMenu(pages=embeds, disable_after_timeout=True, timeout=120).start(ctx)
+
