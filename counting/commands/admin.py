@@ -1,7 +1,8 @@
 """
 MIT License
 
-Copyright (c) 2022-present ltzmax
+Copyright (c) 2024-present IsThrill
+Originally created by ltzmax (2022-2024)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +27,7 @@ import asyncio
 import re
 from enum import Enum
 from typing import Optional
+from datetime import datetime, timezone
 
 import discord
 import emoji
@@ -36,7 +38,7 @@ from redbot.core import commands
 from redbot.core.utils import chat_formatting as cf
 from redbot.core.utils.views import ConfirmView, SimpleMenu
 
-logger = getLogger("red.maxcogs.counting")
+logger = getLogger("red.thrillcogs.counting")
 
 
 class MessageType(Enum):
@@ -474,6 +476,42 @@ class AdminCommands(commands.Cog):
         else:
             await ctx.send("Reset cancelled.")
 
+    @countingset_reset.command(name="setcount")
+    async def set_count_manual(self, ctx: commands.Context, number: commands.Range[int, 0, 1000000000000000]) -> None:
+        """
+        Manually set the current count to a specific number.
+        
+        Only guild owners or users with specified reset roles can use this.
+        
+        **Example usage**:
+        - `[p]countingset reset setcount 500`
+        
+        **Arguments**:
+        - `<number>`: The number to set the count to (0 to 1 quadrillion).
+        """
+        settings = await self.settings.get_guild_settings(ctx.guild)
+        if not (
+            ctx.author == ctx.guild.owner
+            or any(role.id in settings["reset_roles"] for role in ctx.author.roles)
+        ):
+            return await ctx.send("You do not have permission to manually set the count.")
+        
+        view = ConfirmView(ctx.author, disable_buttons=True)
+        view.message = await ctx.send(
+            f"Are you sure you want to set the count to {cf.humanize_number(number)}?", 
+            view=view
+        )
+        await view.wait()
+        
+        if view.result:
+            await asyncio.gather(
+                self.settings.update_guild(ctx.guild, "count", number),
+                self.settings.update_guild(ctx.guild, "last_user_id", None)
+            )
+            await ctx.send(f"Count has been manually set to {cf.humanize_number(number)}.")
+        else:
+            await ctx.send("Set count cancelled.")
+
     @countingset.group(name="misc")
     async def countingset_misc(self, ctx: commands.Context) -> None:
         """Manage miscellaneous counting settings."""
@@ -499,6 +537,188 @@ class AdminCommands(commands.Cog):
             await ctx.send("Leaderboard reset successfully.")
         else:
             await ctx.send("Reset cancelled.")
+
+    @countingset_misc.command(name="buildleaderboard", aliases=["buildlb"])
+    @commands.bot_has_permissions(read_message_history=True, embed_links=True)
+    async def build_leaderboard(self, ctx: commands.Context, merge: bool = False) -> None:
+        """
+        Build or rebuild the leaderboard by scanning message history in the counting channel.
+        
+        This command scans all messages in the counting channel and validates them against
+        counting rules to build an accurate leaderboard from scratch.
+        
+        **Options**:
+        - Use `merge` set to True to merge with existing leaderboard data
+        - Default behavior replaces the current leaderboard entirely
+        
+        **Example usage**:
+        - `[p]countingset misc buildleaderboard` - Replace leaderboard
+        - `[p]countingset misc buildleaderboard true` - Merge with existing data
+        
+        **Note**: This can take several minutes for channels with extensive history.
+        """
+        settings = await self.settings.get_guild_settings(ctx.guild)
+        
+        if not settings["channel"]:
+            return await ctx.send("No counting channel is set. Use `[p]countingset channel` first.")
+        
+        channel = ctx.guild.get_channel(settings["channel"])
+        if not channel:
+            return await ctx.send("The counting channel no longer exists.")
+        
+        if not isinstance(channel, discord.TextChannel):
+            return await ctx.send("The counting channel must be a text channel.")
+        
+        perms = channel.permissions_for(ctx.guild.me)
+        if not perms.read_message_history:
+            return await ctx.send(f"I need read message history permission in {channel.mention}.")
+        
+        view = ConfirmView(ctx.author, disable_buttons=True)
+        action_text = "merge with" if merge else "replace"
+        view.message = await ctx.send(
+            f"This will scan the entire message history in {channel.mention} and {action_text} the current leaderboard. "
+            f"This may take several minutes. Continue?",
+            view=view
+        )
+        await view.wait()
+        
+        if not view.result:
+            return await ctx.send("Leaderboard build cancelled.")
+        
+        status_msg = await ctx.send("🔄 Starting leaderboard build... This may take a while.")
+        
+        try:
+            # Initialize variables
+            temp_leaderboard = {}
+            if merge:
+                temp_leaderboard = settings.get("leaderboard", {}).copy()
+            
+            message_count = 0
+            valid_counts = 0
+            expected_next = 1
+            last_user_id = None
+            same_user_rule = settings.get("same_user_to_count", False)
+            min_account_age = settings.get("min_account_age", 0)
+            highest_count_found = 0
+            
+            # Scan messages
+            async for message in channel.history(limit=None, oldest_first=True):
+                message_count += 1
+                
+                # Update status every 100 messages
+                if message_count % 100 == 0:
+                    await status_msg.edit(
+                        content=f"🔄 Scanning messages... {cf.humanize_number(message_count)} processed, "
+                        f"{cf.humanize_number(valid_counts)} valid counts found."
+                    )
+                
+                # Skip bots
+                if message.author.bot:
+                    continue
+                
+                # Check account age if required
+                if min_account_age > 0:
+                    account_age_days = (datetime.now(timezone.utc) - message.author.created_at).days
+                    if account_age_days < min_account_age:
+                        continue
+                
+                # Check if message is a digit
+                if not message.content.isdigit():
+                    continue
+                
+                count_value = int(message.content)
+                
+                # Check if it matches expected count
+                if count_value != expected_next:
+                    # Count was ruined, reset
+                    expected_next = 1
+                    last_user_id = None
+                    continue
+                
+                # Check same user rule
+                if same_user_rule and last_user_id == message.author.id:
+                    # Same user counted twice, reset
+                    expected_next = 1
+                    last_user_id = None
+                    continue
+                
+                # Valid count!
+                valid_counts += 1
+                if count_value > highest_count_found:
+                    highest_count_found = count_value
+                
+                # Update temp leaderboard
+                user_id = message.author.id
+                temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
+                
+                # Update tracking
+                expected_next += 1
+                last_user_id = message.author.id
+            
+            # Save the new leaderboard
+            await self.settings.update_guild(ctx.guild, "leaderboard", temp_leaderboard)
+            
+            # Build summary embed
+            embed = discord.Embed(
+                title="✅ Leaderboard Build Complete",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            embed.add_field(
+                name="📊 Statistics",
+                value=f"**Messages Scanned**: {cf.humanize_number(message_count)}\n"
+                      f"**Valid Counts Found**: {cf.humanize_number(valid_counts)}\n"
+                      f"**Highest Count Reached**: {cf.humanize_number(highest_count_found)}\n"
+                      f"**Unique Counters**: {cf.humanize_number(len(temp_leaderboard))}",
+                inline=False
+            )
+            
+            # Show top 5
+            if temp_leaderboard:
+                sorted_lb = sorted(temp_leaderboard.items(), key=lambda x: x[1], reverse=True)[:5]
+                top_5_text = ""
+                for rank, (user_id, count) in enumerate(sorted_lb, 1):
+                    member = ctx.guild.get_member(user_id)
+                    name = member.display_name if member else f"User {user_id}"
+                    top_5_text += f"**{rank}.** {name} - {cf.humanize_number(count)} counts\n"
+                
+                embed.add_field(
+                    name="🏆 Top 5 Counters",
+                    value=top_5_text,
+                    inline=False
+                )
+            
+            # Current count info
+            current_count = settings.get("count", 0)
+            embed.add_field(
+                name="ℹ️ Current Count Status",
+                value=f"**Current Count**: {cf.humanize_number(current_count)}\n"
+                      f"**Highest Found**: {cf.humanize_number(highest_count_found)}\n"
+                      f"{'✅ Counts match!' if current_count == highest_count_found else '⚠️ Mismatch detected'}",
+                inline=False
+            )
+            
+            if current_count != highest_count_found:
+                embed.add_field(
+                    name="⚠️ Count Mismatch",
+                    value=f"The current count ({cf.humanize_number(current_count)}) doesn't match "
+                          f"the highest valid count found ({cf.humanize_number(highest_count_found)}).\n"
+                          f"Use `{ctx.clean_prefix}countingset reset setcount {highest_count_found}` to sync.",
+                    inline=False
+                )
+            
+            embed.set_footer(text=f"Action: {'Merged' if merge else 'Replaced'} leaderboard data")
+            
+            await status_msg.delete()
+            await ctx.send(embed=embed)
+            
+        except discord.HTTPException as e:
+            logger.error(f"Failed to build leaderboard in guild {ctx.guild.id}: {e}")
+            await status_msg.edit(content=f"❌ An error occurred while building the leaderboard: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error building leaderboard in guild {ctx.guild.id}: {e}", exc_info=True)
+            await status_msg.edit(content=f"❌ An unexpected error occurred: {str(e)}")
 
     @countingset_misc.command(name="emoji", aliases=["setemoji"])
     async def set_emoji(self, ctx: commands.Context, emoji_input: str) -> None:
@@ -547,7 +767,7 @@ class AdminCommands(commands.Cog):
         except discord.HTTPException as e:
             error_msg = (
                 f"Failed to set '{unicode_emoji}' as reaction. "
-                "Ensure it’s accessible and I have `add_reactions` permission in this channel."
+                "Ensure it's accessible and I have `add_reactions` permission in this channel."
             )
             await ctx.send(error_msg)
             logger.error(
