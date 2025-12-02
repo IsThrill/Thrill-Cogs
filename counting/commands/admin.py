@@ -2,7 +2,7 @@
 MIT License
 
 Copyright (c) 2024-present IsThrill
-Originally created by ltzmax (2022-2025)
+Originally created by ltzmax (2022-2024)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ from redbot.core import commands
 from redbot.core.utils import chat_formatting as cf
 from redbot.core.utils.views import ConfirmView, SimpleMenu
 
-logger = getLogger("red.thrillcogs.counting")
+logger = getLogger("red.maxcogs.counting")
 
 
 class MessageType(Enum):
@@ -544,8 +544,9 @@ class AdminCommands(commands.Cog):
         """
         Build or rebuild the leaderboard by scanning message history in the counting channel.
         
-        This command scans all messages in the counting channel and validates them against
-        counting rules to build an accurate leaderboard from scratch.
+        This command scans all messages in the counting channel and credits users for valid counts.
+        It's lenient with historical data - it only counts consecutive number sequences and ignores
+        interruptions from non-counting messages.
         
         **Options**:
         - Use `merge` set to True to merge with existing leaderboard data
@@ -596,12 +597,10 @@ class AdminCommands(commands.Cog):
             message_count = 0
             valid_counts = 0
             expected_next = 1
-            last_user_id = None
-            same_user_rule = settings.get("same_user_to_count", False)
-            min_account_age = settings.get("min_account_age", 0)
             highest_count_found = 0
+            skipped_non_numeric = 0
             
-            # Scan messages
+            # Scan messages - LENIENT MODE for historical data
             async for message in channel.history(limit=None, oldest_first=True):
                 message_count += 1
                 
@@ -609,51 +608,43 @@ class AdminCommands(commands.Cog):
                 if message_count % 100 == 0:
                     await status_msg.edit(
                         content=f"🔄 Scanning messages... {cf.humanize_number(message_count)} processed, "
-                        f"{cf.humanize_number(valid_counts)} valid counts found."
+                        f"{cf.humanize_number(valid_counts)} valid counts found (currently at {expected_next - 1})."
                     )
                 
-                # Skip bots
+                # Skip bots - they don't count
                 if message.author.bot:
                     continue
                 
-                # Check account age if required
-                if min_account_age > 0:
-                    account_age_days = (datetime.now(timezone.utc) - message.author.created_at).days
-                    if account_age_days < min_account_age:
-                        continue
-                
-                # Check if message is a digit
+                # Check if message is a digit - if not, just skip without resetting
                 if not message.content.isdigit():
+                    skipped_non_numeric += 1
                     continue
                 
                 count_value = int(message.content)
                 
                 # Check if it matches expected count
-                if count_value != expected_next:
-                    # Count was ruined, reset
-                    expected_next = 1
-                    last_user_id = None
-                    continue
-                
-                # Check same user rule
-                if same_user_rule and last_user_id == message.author.id:
-                    # Same user counted twice, reset
-                    expected_next = 1
-                    last_user_id = None
-                    continue
-                
-                # Valid count!
-                valid_counts += 1
-                if count_value > highest_count_found:
-                    highest_count_found = count_value
-                
-                # Update temp leaderboard
-                user_id = message.author.id
-                temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
-                
-                # Update tracking
-                expected_next += 1
-                last_user_id = message.author.id
+                if count_value == expected_next:
+                    # Valid count!
+                    valid_counts += 1
+                    if count_value > highest_count_found:
+                        highest_count_found = count_value
+                    
+                    # Update temp leaderboard
+                    user_id = message.author.id
+                    temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
+                    
+                    # Move to next expected number
+                    expected_next += 1
+                    
+                elif count_value == 1:
+                    # Someone started a new count sequence (after a ruin)
+                    # Credit them and reset tracking
+                    valid_counts += 1
+                    user_id = message.author.id
+                    temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
+                    expected_next = 2
+                    
+                # If count doesn't match and isn't 1, just skip it (likely a mistake or ruin)
             
             # Save the new leaderboard
             await self.settings.update_guild(ctx.guild, "leaderboard", temp_leaderboard)
@@ -668,6 +659,7 @@ class AdminCommands(commands.Cog):
             embed.add_field(
                 name="📊 Statistics",
                 value=f"**Messages Scanned**: {cf.humanize_number(message_count)}\n"
+                      f"**Non-numeric Messages Skipped**: {cf.humanize_number(skipped_non_numeric)}\n"
                       f"**Valid Counts Found**: {cf.humanize_number(valid_counts)}\n"
                       f"**Highest Count Reached**: {cf.humanize_number(highest_count_found)}\n"
                       f"**Unique Counters**: {cf.humanize_number(len(temp_leaderboard))}",
@@ -699,12 +691,28 @@ class AdminCommands(commands.Cog):
                 inline=False
             )
             
+            # Add explanation
+            embed.add_field(
+                name="ℹ️ How Scanning Works",
+                value="This scanner uses **lenient mode** for historical data:\n"
+                      "• Skips non-numeric messages without resetting\n"
+                      "• Ignores current rules (same-user, account age)\n"
+                      "• Credits users for all valid consecutive counts\n"
+                      "• Treats '1' as a new sequence start after ruins",
+                inline=False
+            )
+            
             if current_count != highest_count_found:
                 embed.add_field(
                     name="⚠️ Count Mismatch",
                     value=f"The current count ({cf.humanize_number(current_count)}) doesn't match "
-                          f"the highest valid count found ({cf.humanize_number(highest_count_found)}).\n"
-                          f"Use `{ctx.clean_prefix}countingset reset setcount {highest_count_found}` to sync.",
+                          f"the highest valid count found ({cf.humanize_number(highest_count_found)}).\n\n"
+                          f"**Possible reasons:**\n"
+                          f"• Count was manually adjusted\n"
+                          f"• Messages were deleted\n"
+                          f"• Count was ruined and continued from wrong number\n\n"
+                          f"If you trust the scan results, use:\n"
+                          f"`{ctx.clean_prefix}countingset reset setcount {highest_count_found}`",
                     inline=False
                 )
             
@@ -879,4 +887,3 @@ class AdminCommands(commands.Cog):
             )
             embeds.append(embed)
         await SimpleMenu(pages=embeds, disable_after_timeout=True, timeout=120).start(ctx)
-
