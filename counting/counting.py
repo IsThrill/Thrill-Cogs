@@ -38,6 +38,9 @@ from .settings import SettingsManager
 class Counting(UserCommands, AdminCommands, commands.Cog):
     """Count from 1 to infinity!"""
 
+    __version__: Final[str] = "3.2.0"
+    __author__: Final[str] = "IsThrill"
+    
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9008567, force_registration=True)
@@ -103,6 +106,8 @@ class Counting(UserCommands, AdminCommands, commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
-
         await self.event_handlers.on_raw_message_edit(payload)
 
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message) -> None:
+        await self.event_handlers.on_message_delete(message)
