@@ -1,7 +1,8 @@
 """
 MIT License
 
-Copyright (c) 2022-present ltzmax
+Copyright (c) 2024-present IsThrill
+Originally created by ltzmax (2022-2025)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -152,4 +153,5 @@ async def remove_expired_roles(config: Config, guild: discord.Guild) -> None:
                             raise
                 to_remove.append(user_id)
         for user_id in to_remove:
+
             del temp_roles[user_id]
