@@ -3,24 +3,6 @@ MIT License
 
 Copyright (c) 2024-present IsThrill
 Originally created by ltzmax (2022-2025)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 """
 
 import asyncio
@@ -40,7 +22,7 @@ from .utils import (
     send_message,
 )
 
-logger = getLogger("red.maxcogs.counting.event_handlers")
+logger = getLogger("red.thrillcogs.counting.event_handlers")
 
 
 class EventHandlers:
@@ -284,6 +266,44 @@ class EventHandlers:
                 response,
                 delete_after=delete_after,
                 silent=settings["use_silent"],
-
             )
 
+    async def on_message_delete(self, message: discord.Message) -> None:
+        """Handle message deletions in the counting channel."""
+        if message.author.bot or not message.guild:
+            return
+        
+        if await self.bot.cog_disabled_in_guild(self.bot.get_cog("Counting"), message.guild):
+            return
+        
+        settings = await self.settings.get_guild_settings(message.guild)
+        
+        if not settings["toggle"] or message.channel.id != settings["channel"]:
+            return
+        
+        if not message.content.strip().isdigit():
+            return
+        
+        deleted_number = int(message.content.strip())
+        current_count = settings["count"]
+        
+        if deleted_number < current_count - 10 or deleted_number > current_count:
+            return
+        
+        new_count = deleted_number - 1
+        if new_count < 0:
+            new_count = 0
+            
+        await asyncio.gather(
+            self.settings.update_guild(message.guild, "count", new_count),
+            self.settings.update_guild(message.guild, "last_user_id", None)
+        )
+        
+        perms = message.channel.permissions_for(message.guild.me)
+        if perms.send_messages:
+            await send_message(
+                message.channel,
+                f"⚠️ A count message was deleted (#{deleted_number}). Count reset to **{new_count}**. Next number: **{new_count + 1}**",
+                delete_after=settings["delete_after"] if settings.get("toggle_delete_after") else None,
+                silent=settings["use_silent"]
+            )
