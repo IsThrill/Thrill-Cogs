@@ -1,7 +1,8 @@
 """
 MIT License
 
-Copyright (c) 2022-present ltzmax
+Copyright (c) 2024-present IsThrill
+Originally created by ltzmax (2022-2025)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -75,4 +76,5 @@ class SettingsManager:
     async def clear_user(self, user: discord.Member) -> None:
         """Clear user settings and update cache."""
         await self.config.user(user).clear()
+
         self._user_cache[user.id] = {"count": 0, "last_count_timestamp": None}
