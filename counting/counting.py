@@ -40,6 +40,7 @@ class Counting(UserCommands, AdminCommands, commands.Cog):
 
     __version__: Final[str] = "3.2.0"
     __author__: Final[str] = "IsThrill"
+    __docs__: Final[str] = "https://github.com/IsThrill/Thrill-Cogs/tree/master/counting"
     
     def __init__(self, bot: Red):
         self.bot = bot
@@ -68,7 +69,7 @@ class Counting(UserCommands, AdminCommands, commands.Cog):
             "temp_roles": {},
             "ruin_role_duration": None,
             "excluded_roles": [],
-            "goal": [],
+            "goals": [],
             "goal_message": "{user} reached the goal of {goal}! Congratulations!",
             "toggle_goal_delete": False,
             "progress_interval": 10,
@@ -94,8 +95,31 @@ class Counting(UserCommands, AdminCommands, commands.Cog):
         return f"{base}\n\nAuthor: {self.__author__}\nCog Version: {self.__version__}\nDocs: {self.__docs__}"
 
     async def red_delete_data_for_user(self, *, requester: str, user_id: int) -> None:
-        """No user data to delete."""
-        pass
+        """
+        Delete all data stored for a specific user.
+        
+        This removes:
+        - User's global count statistics
+        - User's leaderboard entries from all guilds
+        """
+        await self.config.user_from_id(user_id).clear()
+        
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            leaderboard = guild_data.get("leaderboard", {})
+            if user_id in leaderboard:
+                del leaderboard[user_id]
+                await self.config.guild_from_id(guild_id).leaderboard.set(leaderboard)
+                
+        if hasattr(self.settings, '_guild_cache'):
+            for guild_id in self.settings._guild_cache:
+                if "leaderboard" in self.settings._guild_cache[guild_id]:
+                    leaderboard = self.settings._guild_cache[guild_id]["leaderboard"]
+                    if user_id in leaderboard:
+                        del leaderboard[user_id]
+                        
+        if hasattr(self.settings, '_user_cache') and user_id in self.settings._user_cache:
+            del self.settings._user_cache[user_id]
 
     def cog_unload(self):
         self.event_handlers.remove_expired_roles.cancel()
