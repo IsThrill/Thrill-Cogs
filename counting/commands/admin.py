@@ -404,7 +404,7 @@ class AdminCommands(commands.Cog):
                 current_goals.append(goal)
                 current_goals.sort()
                 await self.settings.update_guild(ctx.guild, "goals", current_goals)
-                await ctx.send(f"Counting goal {goal} added. Current goals")
+                await ctx.send(f"Counting goal {goal} added. Current goals: {', '.join(map(str, current_goals))}")
             else:
                 await ctx.send(f"Goal {goal} is already set.")
         elif action.lower() == "remove":
@@ -526,7 +526,7 @@ class AdminCommands(commands.Cog):
         """
         embed = discord.Embed(
             title="Confirm Leaderboard Reset",
-            description="This will **permanently delete** all leaderboard data for this server. Everyone's counts will reset to 0, This Action cannot be undone and we are unable to revert.\n\nAre you sure you want to proceed?",
+            description="This will **permanently delete** all leaderboard data for this server. Everyone's counts will reset to 0. This action cannot be undone.\n\nAre you sure you want to proceed?",
             color=discord.Color.red(),
         )
         view = ConfirmView(ctx.author, disable_buttons=True)
@@ -591,13 +591,21 @@ class AdminCommands(commands.Cog):
         try:
             temp_leaderboard = {}
             if merge:
-                temp_leaderboard = settings.get("leaderboard", {}).copy()
+                existing = settings.get("leaderboard", {})
+                temp_leaderboard = {int(k): v for k, v in existing.items() if str(k).isdigit()}
             
             message_count = 0
             valid_counts = 0
             expected_next = 1
             highest_count_found = 0
             skipped_non_numeric = 0
+            last_user_id = None
+            
+            issues = {
+                "bot_messages": 0,
+                "same_user_violations": 0,
+                "out_of_sequence": 0
+            }
             
             async for message in channel.history(limit=None, oldest_first=True):
                 message_count += 1
@@ -605,17 +613,18 @@ class AdminCommands(commands.Cog):
                 if message_count % 100 == 0:
                     await status_msg.edit(
                         content=f"🔄 Scanning messages... {cf.humanize_number(message_count)} processed, "
-                        f"{cf.humanize_number(valid_counts)} valid counts found (currently at {expected_next - 1})."
+                        f"{cf.humanize_number(valid_counts)} valid counts found (currently expecting: {expected_next})."
                     )
                 
                 if message.author.bot:
+                    issues["bot_messages"] += 1
                     continue
                 
-                if not message.content.isdigit():
+                if not message.content.strip().isdigit():
                     skipped_non_numeric += 1
                     continue
                 
-                count_value = int(message.content)
+                count_value = int(message.content.strip())
                 
                 if count_value == expected_next:
                     valid_counts += 1
@@ -626,12 +635,16 @@ class AdminCommands(commands.Cog):
                     temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
                     
                     expected_next += 1
+                    last_user_id = user_id
                     
                 elif count_value == 1:
                     valid_counts += 1
                     user_id = message.author.id
                     temp_leaderboard[user_id] = temp_leaderboard.get(user_id, 0) + 1
                     expected_next = 2
+                    last_user_id = user_id
+                else:
+                    issues["out_of_sequence"] += 1
             
             await self.settings.update_guild(ctx.guild, "leaderboard", temp_leaderboard)
             
@@ -644,7 +657,9 @@ class AdminCommands(commands.Cog):
             embed.add_field(
                 name="📊 Statistics",
                 value=f"**Messages Scanned**: {cf.humanize_number(message_count)}\n"
-                      f"**Non-numeric Messages Skipped**: {cf.humanize_number(skipped_non_numeric)}\n"
+                      f"**Bot Messages Skipped**: {cf.humanize_number(issues['bot_messages'])}\n"
+                      f"**Non-numeric Messages**: {cf.humanize_number(skipped_non_numeric)}\n"
+                      f"**Out of Sequence**: {cf.humanize_number(issues['out_of_sequence'])}\n"
                       f"**Valid Counts Found**: {cf.humanize_number(valid_counts)}\n"
                       f"**Highest Count Reached**: {cf.humanize_number(highest_count_found)}\n"
                       f"**Unique Counters**: {cf.humanize_number(len(temp_leaderboard))}",
@@ -677,10 +692,11 @@ class AdminCommands(commands.Cog):
             embed.add_field(
                 name="ℹ️ How Scanning Works",
                 value="This scanner uses **lenient mode** for historical data:\n"
-                      "• Skips non-numeric messages without resetting\n"
-                      "• Ignores current rules (same-user, account age)\n"
-                      "• Credits users for all valid consecutive counts\n."
-                      "• Treats '1' as a new sequence start after ruins",
+                      "• Counts consecutive numbers starting from 1\n"
+                      "• Treats any '1' as a potential sequence restart\n"
+                      "• Skips bot messages and non-numeric content\n"
+                      "• Ignores same-user restrictions for historical data\n"
+                      "• Credits all users who posted valid sequence numbers",
                 inline=False
             )
             
@@ -691,10 +707,21 @@ class AdminCommands(commands.Cog):
                           f"the highest valid count found ({cf.humanize_number(highest_count_found)}).\n\n"
                           f"**Possible reasons:**\n"
                           f"• Count was manually adjusted\n"
-                          f"• Messages were deleted\n"
-                          f"• Count was ruined and continued from wrong number\n\n."
-                          f"If you trust the scan results, use:\n."
+                          f"• Messages were deleted after being counted\n"
+                          f"• Count continued from wrong number after a ruin\n\n"
+                          f"If you trust the scan results, you can update the count:\n"
                           f"`{ctx.clean_prefix}countingset reset setcount {highest_count_found}`",
+                    inline=False
+                )
+            
+            if issues["out_of_sequence"] > 0:
+                embed.add_field(
+                    name="❓ Why Were Messages Skipped?",
+                    value=f"**{cf.humanize_number(issues['out_of_sequence'])} out-of-sequence messages** were found. These are numbers that:\n"
+                          f"• Don't follow the expected sequence\n"
+                          f"• Were posted after the count was ruined but before someone posted '1'\n"
+                          f"• Represent duplicate or incorrect counts\n\n"
+                          f"This is normal in active counting channels where ruins occur.",
                     inline=False
                 )
             
@@ -869,4 +896,3 @@ class AdminCommands(commands.Cog):
             )
             embeds.append(embed)
         await SimpleMenu(pages=embeds, disable_after_timeout=True, timeout=120).start(ctx)
-
