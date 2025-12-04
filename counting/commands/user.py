@@ -24,7 +24,6 @@ SOFTWARE.
 """
 
 import asyncio
-from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
@@ -45,47 +44,61 @@ class UserCommands(commands.Cog):
     @counting.command(name="stats")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def stats(self, ctx: commands.Context, user: Optional[discord.Member] = None) -> None:
-        """Show counting stats for a user."""
+        """Show counting stats for a user from the guild leaderboard."""
         user = user or ctx.author
         if user.bot:
             return await ctx.send("Bots cannot count.")
-        settings = await self.settings.get_user_settings(user)
-        if not settings["count"]:
-            return await ctx.send(f"{user.display_name} has not counted yet.")
-        last_count = (
-            datetime.fromisoformat(settings["last_count_timestamp"])
-            if settings["last_count_timestamp"]
-            else None
-        )
-        time_str = discord.utils.format_dt(last_count, "R") if last_count else "Never"
+        
+        guild_settings = await self.settings.get_guild_settings(ctx.guild)
+        leaderboard = guild_settings.get("leaderboard", {})
+        
+        user_count = leaderboard.get(user.id, 0)
+        
+        if user_count == 0:
+            return await ctx.send(f"{user.display_name} has not counted yet in this server.")
+        
+        # Calculate rank
+        sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+        rank = next((i + 1 for i, (uid, _) in enumerate(sorted_leaderboard) if uid == user.id), None)
+        
         table = tabulate(
             [
                 ["User", user.display_name],
-                ["Total Counts", cf.humanize_number(settings["count"])],
+                ["Total Counts", cf.humanize_number(user_count)],
+                ["Server Rank", f"#{rank}" if rank else "Unranked"],
             ],
             headers=["Stat", "Value"],
             tablefmt="simple",
             stralign="left",
         )
-        await ctx.send(f"Last counted: {time_str}\n{box(table, lang='prolog')}")
+        await ctx.send(box(table, lang='prolog'))
 
     @counting.command(name="resetme", with_app_command=False)
     @commands.cooldown(1, 360, commands.BucketType.user)
     async def resetme(self, ctx: commands.Context) -> None:
         """
-        Reset your own counting stats.
+        Reset your counting stats for this server.
 
-        This will clear your count and last counted timestamp.
+        This will clear your count from the server leaderboard.
         This action cannot be undone, so use it carefully with the confirmation prompt.
         """
+        guild_settings = await self.settings.get_guild_settings(ctx.guild)
+        leaderboard = guild_settings.get("leaderboard", {})
+        
+        if ctx.author.id not in leaderboard or leaderboard[ctx.author.id] == 0:
+            return await ctx.send("You don't have any counts to reset in this server.")
+        
         view = ConfirmView(ctx.author, disable_buttons=True)
         view.message = await ctx.send(
-            "Are you sure you want to reset your counting stats? This cannot be undone.", view=view
+            f"Are you sure you want to reset your {cf.humanize_number(leaderboard[ctx.author.id])} counts? This cannot be undone.", 
+            view=view
         )
         await view.wait()
+        
         if view.result:
-            await self.settings.clear_user(ctx.author)
-            await ctx.send("Your stats have been reset.")
+            leaderboard[ctx.author.id] = 0
+            await self.settings.update_guild(ctx.guild, "leaderboard", leaderboard)
+            await ctx.send("Your server counting stats have been reset.")
         else:
             await ctx.send("Reset cancelled.")
 
@@ -97,48 +110,32 @@ class UserCommands(commands.Cog):
         Show the counting leaderboard for the server.
 
         Displays the top users with the highest counts, paginated by 15.
-        Note: Only users who have counted at least once since the leaderboard tracking began will appear.
-        If you counted before this feature was added, you'll need to count again to be included.
         """
         settings = await self.settings.get_guild_settings(ctx.guild)
         leaderboard = settings.get("leaderboard", {})
 
-        if leaderboard and any(isinstance(k, str) for k in leaderboard):
-            new_leaderboard = defaultdict(int)
-            name_to_id = {}
-            for member in ctx.guild.members:
-                dl = member.display_name.lower()
-                nl = member.name.lower()
-                if dl not in name_to_id:
-                    name_to_id[dl] = member.id
-                if nl not in name_to_id:
-                    name_to_id[nl] = member.id
-            unmapped_count = 0
-            for key, count in leaderboard.items():
-                if isinstance(key, int):
-                    new_leaderboard[key] += count
-                else:
-                    lower_key = key.lower()
-                    if lower_key in name_to_id:
-                        uid = name_to_id[lower_key]
-                        new_leaderboard[uid] += count
-                    else:
-                        new_leaderboard[key] += count
-                        unmapped_count += 1
-            await self.settings.update_guild(ctx.guild, "leaderboard", dict(new_leaderboard))
-            settings = await self.settings.get_guild_settings(ctx.guild)
-            leaderboard = settings.get("leaderboard", {})
-            if unmapped_count > 0:
-                await ctx.send(
-                    f"Note: {unmapped_count} legacy name entries couldn't be migrated (likely due to name changes or users who left).\nThey remain as separate entries. Use `{ctx.clean_prefix}countingset misc resetleaderboard` to clear the leaderboard and start fresh if desired."
-                )
-
         if not leaderboard:
+            return await ctx.send(
+                "No counts recorded yet. Get counting!\n\n"
+                f"If you've been counting before this leaderboard was set up, an admin can use:\n"
+                f"`{ctx.clean_prefix}countingset misc buildleaderboard` to scan message history."
+            )
+
+        filtered_leaderboard = {}
+        for key, count in leaderboard.items():
+            if count == 0:
+                continue
+            if isinstance(key, int):
+                filtered_leaderboard[key] = count
+            elif isinstance(key, str) and key.isdigit():
+                filtered_leaderboard[int(key)] = count
+
+        if not filtered_leaderboard:
             return await ctx.send("No counts recorded yet. Get counting!")
 
-        sorted_items = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
-        all_keys = [key for key, _ in sorted_items]
-        display_names = await self._build_display_names(ctx, all_keys)
+        sorted_items = sorted(filtered_leaderboard.items(), key=lambda x: x[1], reverse=True)
+        
+        display_names = await self._build_display_names(ctx, [uid for uid, _ in sorted_items])
 
         pages = []
         page_size = 15
@@ -147,49 +144,42 @@ class UserCommands(commands.Cog):
             table_data = [
                 [
                     str(pos),
-                    display_names.get(key, f"Unknown ({key})"),
+                    display_names.get(user_id, f"Unknown User"),
                     cf.humanize_number(count),
                 ]
-                for pos, (key, count) in enumerate(page_items, start=i + 1)
+                for pos, (user_id, count) in enumerate(page_items, start=i + 1)
             ]
             table = tabulate(
                 table_data,
-                headers=["Position", "User", "Count"],
+                headers=["Rank", "User", "Counts"],
                 tablefmt="simple",
                 stralign="left",
             )
             page_num = (i // page_size) + 1
             total_pages = (len(sorted_items) + page_size - 1) // page_size
             embed = discord.Embed(
-                title=f"Counting Leaderboard - Page {page_num}/{total_pages}",
+                title=f"🏆 Counting Leaderboard - Page {page_num}/{total_pages}",
                 description=box(table, lang="prolog"),
                 color=await ctx.embed_color(),
             )
+            embed.set_footer(text=f"Total counters: {len(filtered_leaderboard)}")
             pages.append(embed)
 
         await SimpleMenu(pages, disable_after_timeout=True, timeout=120).start(ctx)
 
-    async def _build_display_names(self, ctx: commands.Context, keys: list) -> dict:
+    async def _build_display_names(self, ctx: commands.Context, user_ids: list[int]) -> dict:
         """
-        Efficiently build a mapping of key (int user_id or str legacy_name) to display_name.
+        Efficiently build a mapping of user_id to display_name.
 
-        For int keys: Prioritizes guild members, then parallel-fetches missing via API.
-        For str keys: Uses the string itself (legacy name).
+        Prioritizes guild members, then parallel-fetches missing users via API.
         """
         display_names = {}
-        str_keys = [k for k in keys if isinstance(k, str)]
-        for sk in str_keys:
-            display_names[sk] = sk
-
-        int_keys = [k for k in keys if isinstance(k, int)]
-        if not int_keys:
-            return display_names
-
-        relevant_members = {
-            m.id: m.display_name for m in ctx.guild.members if m.id in set(int_keys)
-        }
-        display_names.update(relevant_members)
-        missing_ids = [uid for uid in int_keys if uid not in relevant_members]
+        
+        member_map = {m.id: m.display_name for m in ctx.guild.members if m.id in set(user_ids)}
+        display_names.update(member_map)
+        
+        missing_ids = [uid for uid in user_ids if uid not in member_map]
+        
         if missing_ids:
             fetch_tasks = [self.bot.fetch_user(uid) for uid in missing_ids]
             fetched_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
@@ -198,7 +188,4 @@ class UserCommands(commands.Cog):
                 if isinstance(result, (discord.User, discord.Member)):
                     display_names[uid] = result.display_name
                 else:
-                    display_names[uid] = f"Unknown User ({uid})"
-
-        return display_names
-
+                    display_names[uid] = f"Unknown User"
