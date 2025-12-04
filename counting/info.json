@@ -27,6 +27,6 @@
         9,
         0
     ],
-    "end_user_data_statement": "This cog does not store any End User Data.",
+    "end_user_data_statement": "This cog stores user IDs and count statistics for leaderboard functionality. Users can request deletion of their data via the bot owner.",
     "type": "COG"
 }
