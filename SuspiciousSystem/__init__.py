@@ -1,20 +1,21 @@
-from redbot.core import commands
 from redbot.core.bot import Red
 from .suspicioususermonitor import SuspiciousUserMonitor
 
 __red_end_user_data_statement__ = (
-    "This cog stores the following user data:\n"
-    "- User IDs and timestamps for pending questionnaires\n"
-    "- Saved role IDs when users are marked suspicious\n"
-    "- Optional ticket channel IDs for questionnaire delivery\n\n"
+    "This cog stores the following user data per guild:\n"
+    "- User IDs and timestamps for pending verifications\n"
+    "- User IDs in the whitelist (bypasses account-age check)\n"
+    "- User IDs and strike counts for DM-failure tracking\n\n"
     "Data is automatically cleaned up when:\n"
-    "- Users complete questionnaires\n"
-    "- Users are verified as safe by staff\n"
-    "- Users are kicked/banned from the server\n"
-    "- The 24-hour questionnaire timeout expires\n\n"
-    "Server administrators can clear all data by unloading the cog."
+    "- A user completes or abandons their verification\n"
+    "- A user is approved, denied, kicked, or banned\n"
+    "- A server administrator calls `sus resetfails` or `sus unwhitelist`\n\n"
+    "Server owners and bot owners can request full user data deletion "
+    "via Red's standard `[p]mydata` flow, which invokes "
+    "`red_delete_data_for_user` on this cog."
 )
 
-async def setup(bot: Red):
+
+async def setup(bot: Red) -> None:
     cog = SuspiciousUserMonitor(bot)
     await bot.add_cog(cog)
