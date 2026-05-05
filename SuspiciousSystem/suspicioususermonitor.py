@@ -95,7 +95,7 @@ class VerificationModal(Modal):
             title="📋 Verification Submission",
             description=(
                 f"**{user}** (`{user.id}`) has submitted their verification.\n"
-                "Staff — please review and Approve or Deny below."
+                "Staff - please review and Approve or Deny below."
             ),
             color=discord.Color.blurple(),
             timestamp=datetime.now(timezone.utc),
@@ -116,7 +116,7 @@ class VerificationModal(Modal):
                 display = f"[🌐 Open VRChat Profile]({val.strip()})\n`{val.strip()[:250]}`"
             else:
                 display = val[:1024]
-            embed.add_field(name=f"Q{i} — {q[:100]}", value=display, inline=False)
+            embed.add_field(name=f"Q{i} - {q[:100]}", value=display, inline=False)
 
         embed.set_footer(text=f"Server: {guild.name}")
 
@@ -129,7 +129,7 @@ class VerificationModal(Modal):
         try:
             await alert_channel.send(
                 content=(
-                    f"{mention_role.mention} — New verification submission needs review!"
+                    f"{mention_role.mention} - New verification submission needs review!"
                     if mention_role
                     else "New verification submission needs review!"
                 ),
@@ -172,7 +172,7 @@ class VerificationModal(Modal):
             pass
 
 
-# ── Verification ───────────────────────────────────────────────────────
+# ── Verification DM view ───────────────────────────────────────────────────────
 
 
 class VerificationView(View):
@@ -190,11 +190,12 @@ class VerificationView(View):
         try:
             user_id = interaction.user.id
 
+            # Single bulk read - avoids N per-guild awaits that exceed Discord's 3 s window
+            all_guilds = await self.cog.config.all_guilds()
             guild_id: Optional[int] = None
-            for g in self.cog.bot.guilds:
-                pv = await self.cog.config.guild(g).pending_verifications()
-                if str(user_id) in pv:
-                    guild_id = g.id
+            for gid, data in all_guilds.items():
+                if str(user_id) in data.get("pending_verifications", {}):
+                    guild_id = int(gid)
                     break
 
             if guild_id is None:
@@ -338,7 +339,7 @@ class SubmissionReviewView(View):
                 try:
                     inv = await ch.create_invite(
                         max_age=86400, max_uses=1, unique=True,
-                        reason=f"Approved verification — user {user_id}",
+                        reason=f"Approved verification - user {user_id}",
                     )
                     invite_url = inv.url
                 except Exception as exc:
@@ -351,7 +352,7 @@ class SubmissionReviewView(View):
                     title="✅ Verification Approved!",
                     description=(
                         f"Your verification for **{guild.name}** has been **approved** by staff!\n\n"
-                        f"You have been whitelisted — you may rejoin at any time."
+                        f"You have been whitelisted - you may rejoin at any time."
                     ),
                     color=discord.Color.green(),
                     timestamp=datetime.now(timezone.utc),
@@ -368,7 +369,7 @@ class SubmissionReviewView(View):
                 dm_embed.set_footer(text=guild.name, icon_url=guild.icon.url if guild.icon else None)
                 await user.send(embed=dm_embed)
             except discord.Forbidden:
-                log.warning("Could not DM approved user %s — DMs closed.", user_id)
+                log.warning("Could not DM approved user %s - DMs closed.", user_id)
 
         embed = _replace_mod_field(
             interaction.message.embeds[0].copy(),
@@ -793,7 +794,7 @@ class SuspiciousUserMonitor(commands.Cog):
     ) -> bool:
         questions = await self.config.guild(guild).questionnaire_questions()
         if not questions:
-            log.warning("No questions configured in %s — skipping verification DM.", guild)
+            log.warning("No questions configured in %s - skipping verification DM.", guild)
             return False
 
         embed = discord.Embed(
@@ -810,7 +811,7 @@ class SuspiciousUserMonitor(commands.Cog):
         embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
         embed.add_field(name="Server", value=guild.name, inline=True)
         embed.add_field(name="Questions", value=str(len(questions)), inline=True)
-        embed.set_footer(text="This is an automated message — do not reply here.")
+        embed.set_footer(text="This is an automated message - do not reply here.")
 
         try:
             await member.send(embed=embed, view=VerificationView(self))
@@ -868,7 +869,7 @@ class SuspiciousUserMonitor(commands.Cog):
                 unban.disabled = False
 
         await alert_channel.send(
-            content=f"{mention_role.mention} — Suspicious account flagged!" if mention_role else None,
+            content=f"{mention_role.mention} - Suspicious account flagged!" if mention_role else None,
             embed=embed,
             view=view,
             allowed_mentions=discord.AllowedMentions(roles=[mention_role] if mention_role else []),
@@ -881,7 +882,6 @@ class SuspiciousUserMonitor(commands.Cog):
             datetime.now(timezone.utc) - member.created_at.replace(tzinfo=timezone.utc)
         ).days
 
-        # ── Post 1-minute warning mention ─────────────────────────────────────
 
         warn_message: Optional[discord.Message] = None
         vchan_id = settings.get("verification_channel")
@@ -890,7 +890,7 @@ class SuspiciousUserMonitor(commands.Cog):
             if vchan:
                 try:
                     warn_message = await vchan.send(
-                        f"{member.mention} — ⚠️ **Your account has been flagged as suspicious.**\n"
+                        f"{member.mention} - ⚠️ **Your account has been flagged as suspicious.**\n"
                         f"Please **enable your Discord DMs** from this server within **1 minute** "
                         f"so we can send you a verification message. "
                         f"Failure to do so will result in your removal from the server."
@@ -921,13 +921,13 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason="Suspicious account — verification DM sent (DMs re-enabled within 1 min).",
+                    reason="Suspicious account - verification DM sent (DMs re-enabled within 1 min).",
                 )
             except Exception as exc:
                 log.error("Failed to kick %s after delayed DM: %s", member, exc)
             await self._send_staff_alert(
                 guild, member, account_age,
-                "Account age below threshold — verification DM sent (DMs re-enabled within 1 min).",
+                "Account age below threshold - verification DM sent (DMs re-enabled within 1 min).",
             )
             return
 
@@ -962,14 +962,14 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason=f"Suspicious account — DMs disabled, could not verify (attempt {count}/5).",
+                    reason=f"Suspicious account - DMs disabled, could not verify (attempt {count}/5).",
                 )
-                log.info("Kicked %s from %s — DMs disabled (failure %d/5).", member, guild, count)
+                log.info("Kicked %s from %s - DMs disabled (failure %d/5).", member, guild, count)
             except Exception as exc:
                 log.error("Failed to kick %s: %s", member, exc)
             await self._send_staff_alert(
                 guild, member, account_age,
-                f"DMs disabled — could not deliver verification (attempt **{count} / 5** before auto-ban).",
+                f"DMs disabled - could not deliver verification (attempt **{count} / 5** before auto-ban).",
             )
 
     # ── Listeners ─────────────────────────────────────────────────────────────
@@ -992,7 +992,7 @@ class SuspiciousUserMonitor(commands.Cog):
         if account_age >= settings.get("min_account_age", 7):
             return
 
-        log.info("Flagging %s in %s — age %d days.", member, guild, account_age)
+        log.info("Flagging %s in %s - age %d days.", member, guild, account_age)
 
         dm_sent = await self._try_send_verification_dm(member, guild)
 
@@ -1002,13 +1002,13 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason="Account age below threshold — verification DM sent.",
+                    reason="Account age below threshold - verification DM sent.",
                 )
             except Exception as exc:
                 log.error("Failed to kick %s after DM: %s", member, exc)
             await self._send_staff_alert(
                 guild, member, account_age,
-                "Account age below threshold — verification DM sent, member kicked.",
+                "Account age below threshold - verification DM sent, member kicked.",
             )
         else:
             key = f"{guild.id}:{member.id}"
@@ -1027,8 +1027,6 @@ class SuspiciousUserMonitor(commands.Cog):
         task = self._dm_warn_tasks.pop(key, None)
         if task:
             task.cancel()
-        async with self.config.guild(member.guild).pending_verifications() as pv:
-            pv.pop(str(member.id), None)
 
     # ── Hybrid commands ───────────────────────────────────────────────────────
 
@@ -1182,7 +1180,7 @@ class SuspiciousUserMonitor(commands.Cog):
         dm_fails: dict = s["dm_fail_counts"]
 
         embed = discord.Embed(
-            title="⚙️  Suspicious User Monitor — Settings",
+            title="⚙️  Suspicious User Monitor - Settings",
             color=discord.Color.blurple(),
             timestamp=datetime.now(timezone.utc),
         )
@@ -1205,7 +1203,7 @@ class SuspiciousUserMonitor(commands.Cog):
 
         if dm_fails:
             top = list(dm_fails.items())[:10]
-            fails_text = "\n".join(f"`{uid}` — {cnt} strike(s)" for uid, cnt in top)
+            fails_text = "\n".join(f"`{uid}` - {cnt} strike(s)" for uid, cnt in top)
             if len(dm_fails) > 10:
                 fails_text += f"\n*…and {len(dm_fails) - 10} more*"
             embed.add_field(name="DM-Fail Strikes", value=fails_text, inline=False)
