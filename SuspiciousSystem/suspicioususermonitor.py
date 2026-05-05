@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import asyncio
 import logging
-import discord
 from datetime import datetime, timezone
 from typing import Optional
+
+import discord
 from discord import app_commands
 from discord.ui import Button, Modal, TextInput, View
 from redbot.core import commands, Config
@@ -12,19 +14,33 @@ from redbot.core.utils.chat_formatting import box
 
 log = logging.getLogger("red.suspicioususermonitor")
 
+# ── Moderation field names ──────
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Modal
-# ─────────────────────────────────────────────────────────────────────────────
+_MOD_FIELD_NAMES = frozenset({
+    "🔨 Manually Banned",
+    "🔨  Banned",
+    "🔓 Unbanned",
+    "✅ Whitelisted",
+    "🚫 Unwhitelisted",
+    "✅ Approved",
+    "❌ Denied & Banned",
+})
+
+
+def _replace_mod_field(embed: discord.Embed, name: str, value: str) -> discord.Embed:
+    kept = [f for f in embed.fields if f.name not in _MOD_FIELD_NAMES]
+    embed.clear_fields()
+    for f in kept:
+        embed.add_field(name=f.name, value=f.value, inline=f.inline)
+    embed.add_field(name=name, value=value, inline=False)
+    return embed
+
+
+# ── Modal ──────────────────────────────────────────────────────────────────────
 
 
 class VerificationModal(Modal):
-    def __init__(
-        self,
-        cog: "SuspiciousUserMonitor",
-        guild_id: int,
-        questions: list[str],
-    ) -> None:
+    def __init__(self, cog: "SuspiciousUserMonitor", guild_id: int, questions: list[str]) -> None:
         super().__init__(title="Account Verification", timeout=None)
         self.cog = cog
         self.guild_id = guild_id
@@ -97,10 +113,7 @@ class VerificationModal(Modal):
             val = inp.value or "*No response provided*"
             is_url = "vrchat" in q.lower()
             if is_url and val.strip().startswith("http"):
-                display = (
-                    f"[🌐 Open VRChat Profile]({val.strip()})\n"
-                    f"`{val.strip()[:250]}`"
-                )
+                display = f"[🌐 Open VRChat Profile]({val.strip()})\n`{val.strip()[:250]}`"
             else:
                 display = val[:1024]
             embed.add_field(name=f"Q{i} — {q[:100]}", value=display, inline=False)
@@ -142,10 +155,24 @@ class VerificationModal(Modal):
             ephemeral=True,
         )
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        log.exception("VerificationModal error: %s", error)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ An unexpected error occurred. Please try again or contact staff.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    "❌ An unexpected error occurred. Please try again or contact staff.",
+                    ephemeral=True,
+                )
+        except Exception:
+            pass
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Persistent Views
-# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Verification ───────────────────────────────────────────────────────
 
 
 class VerificationView(View):
@@ -160,43 +187,84 @@ class VerificationView(View):
         custom_id="sus:begin_verification",
     )
     async def begin(self, interaction: discord.Interaction, button: Button) -> None:
-        user_id = interaction.user.id
+        try:
+            user_id = interaction.user.id
 
-        guild_id: Optional[int] = None
-        for g in self.cog.bot.guilds:
-            pv = await self.cog.config.guild(g).pending_verifications()
-            if str(user_id) in pv:
-                guild_id = g.id
-                break
+            guild_id: Optional[int] = None
+            for g in self.cog.bot.guilds:
+                pv = await self.cog.config.guild(g).pending_verifications()
+                if str(user_id) in pv:
+                    guild_id = g.id
+                    break
 
-        if guild_id is None:
-            return await interaction.response.send_message(
-                "❌ Your verification session has expired or was already submitted.\n"
-                "If you believe this is an error, please contact the server staff directly.",
-                ephemeral=True,
+            if guild_id is None:
+                return await interaction.response.send_message(
+                    "❌ Your verification session has expired or was already submitted.\n"
+                    "If you believe this is an error, please contact the server staff directly.",
+                    ephemeral=True,
+                )
+
+            guild = self.cog.bot.get_guild(guild_id)
+            if not guild:
+                return await interaction.response.send_message(
+                    "❌ The server could not be found. Please contact staff.", ephemeral=True
+                )
+
+            questions = await self.cog.config.guild(guild).questionnaire_questions()
+            if not questions:
+                return await interaction.response.send_message(
+                    "❌ No verification questions are configured yet. "
+                    "Please contact a staff member directly.",
+                    ephemeral=True,
+                )
+
+            await interaction.response.send_modal(
+                VerificationModal(self.cog, guild_id, questions)
             )
 
-        guild = self.cog.bot.get_guild(guild_id)
-        if not guild:
-            return await interaction.response.send_message(
-                "❌ Server not found.", ephemeral=True
-            )
+        except discord.InteractionResponded:
+            pass
+        except Exception as exc:
+            log.exception("VerificationView.begin error: %s", exc)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "❌ Something went wrong opening the verification form. "
+                        "Please try again or contact staff directly.",
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.followup.send(
+                        "❌ Something went wrong opening the verification form. "
+                        "Please try again or contact staff directly.",
+                        ephemeral=True,
+                    )
+            except Exception:
+                pass
 
-        questions = await self.cog.config.guild(guild).questionnaire_questions()
-        if not questions:
-            return await interaction.response.send_message(
-                "❌ No verification questions are set up yet. Please contact staff.",
-                ephemeral=True,
-            )
+    async def on_error(
+        self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item
+    ) -> None:
+        log.exception("VerificationView unhandled error (%s): %s", item, error)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ An unexpected error occurred. Please try again or contact staff.",
+                    ephemeral=True,
+                )
+        except Exception:
+            pass
 
-        modal = VerificationModal(self.cog, guild_id, questions)
-        await interaction.response.send_modal(modal)
+
+# ── Submission review view ────────────────────────────────────
 
 
 class SubmissionReviewView(View):
     def __init__(self, cog: "SuspiciousUserMonitor") -> None:
         super().__init__(timeout=None)
         self.cog = cog
+
+    # ── helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
     def _extract_user_id(msg: discord.Message) -> Optional[int]:
@@ -231,6 +299,8 @@ class SubmissionReviewView(View):
             except Exception:
                 pass
         return user
+
+    # ── buttons ───────────────────────────────────────────────────────────────
 
     @discord.ui.button(
         label="✅  Approve",
@@ -267,14 +337,12 @@ class SubmissionReviewView(View):
             if ch:
                 try:
                     inv = await ch.create_invite(
-                        max_age=86400,
-                        max_uses=1,
-                        unique=True,
+                        max_age=86400, max_uses=1, unique=True,
                         reason=f"Approved verification — user {user_id}",
                     )
                     invite_url = inv.url
                 except Exception as exc:
-                    log.warning("Could not create invite for approved user %s: %s", user_id, exc)
+                    log.warning("Could not create invite for user %s: %s", user_id, exc)
 
         user = await self._resolve_user(user_id)
         if user:
@@ -282,9 +350,8 @@ class SubmissionReviewView(View):
                 dm_embed = discord.Embed(
                     title="✅ Verification Approved!",
                     description=(
-                        f"Your verification for **{guild.name}** has been reviewed "
-                        f"and **approved** by staff!\n\n"
-                        f"You have been whitelisted — you may rejoin the server at any time."
+                        f"Your verification for **{guild.name}** has been **approved** by staff!\n\n"
+                        f"You have been whitelisted — you may rejoin at any time."
                     ),
                     color=discord.Color.green(),
                     timestamp=datetime.now(timezone.utc),
@@ -298,30 +365,24 @@ class SubmissionReviewView(View):
                         ),
                         inline=False,
                     )
-                dm_embed.set_footer(
-                    text=guild.name,
-                    icon_url=guild.icon.url if guild.icon else None,
-                )
+                dm_embed.set_footer(text=guild.name, icon_url=guild.icon.url if guild.icon else None)
                 await user.send(embed=dm_embed)
             except discord.Forbidden:
                 log.warning("Could not DM approved user %s — DMs closed.", user_id)
 
-        embed = interaction.message.embeds[0].copy()
-        embed.color = discord.Color.green()
-        embed.add_field(
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
             name="✅ Approved",
             value=(
                 f"By {interaction.user.mention}\n"
                 f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}"
             ),
-            inline=False,
         )
+        embed.color = discord.Color.green()
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(embed=embed, view=self)
-        log.info(
-            "Verification approved: user %s in %s by %s", user_id, guild, interaction.user
-        )
+        log.info("Verification approved: user %s in %s by %s", user_id, guild, interaction.user)
 
     @discord.ui.button(
         label="❌  Deny & Ban",
@@ -350,16 +411,13 @@ class SubmissionReviewView(View):
                 dm_embed = discord.Embed(
                     title="❌ Verification Denied",
                     description=(
-                        f"Your verification for **{guild.name}** was reviewed and **denied** by staff.\n\n"
+                        f"Your verification for **{guild.name}** was **denied** by staff.\n\n"
                         f"As a result, you have been permanently banned from the server."
                     ),
                     color=discord.Color.dark_red(),
                     timestamp=datetime.now(timezone.utc),
                 )
-                dm_embed.set_footer(
-                    text=guild.name,
-                    icon_url=guild.icon.url if guild.icon else None,
-                )
+                dm_embed.set_footer(text=guild.name, icon_url=guild.icon.url if guild.icon else None)
                 await user.send(embed=dm_embed)
             except discord.Forbidden:
                 pass
@@ -371,33 +429,46 @@ class SubmissionReviewView(View):
                 delete_message_days=0,
             )
         except discord.Forbidden:
-            log.warning("Missing permissions to ban user %s in %s.", user_id, guild)
+            log.warning("Missing ban permission for user %s in %s.", user_id, guild)
         except Exception as exc:
             log.error("Ban error for user %s: %s", user_id, exc)
 
-        embed = interaction.message.embeds[0].copy()
-        embed.color = discord.Color.dark_red()
-        embed.add_field(
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
             name="❌ Denied & Banned",
             value=(
                 f"By {interaction.user.mention}\n"
                 f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}"
             ),
-            inline=False,
         )
+        embed.color = discord.Color.dark_red()
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(embed=embed, view=self)
-        log.info(
-            "Verification denied + banned: user %s in %s by %s",
-            user_id, guild, interaction.user,
-        )
+        log.info("Verification denied+banned: user %s in %s by %s", user_id, guild, interaction.user)
+
+    async def on_error(
+        self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item
+    ) -> None:
+        log.exception("SubmissionReviewView error (%s): %s", item, error)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ An unexpected error occurred. Please try again.", ephemeral=True
+                )
+        except Exception:
+            pass
+
+
+# ── Flagged alert view ─────────────────
 
 
 class FlaggedAlertView(View):
     def __init__(self, cog: "SuspiciousUserMonitor") -> None:
         super().__init__(timeout=None)
         self.cog = cog
+
+    # ── helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
     def _extract_user_id(msg: discord.Message) -> Optional[int]:
@@ -434,10 +505,19 @@ class FlaggedAlertView(View):
         except Exception:
             return False
 
+    def _get_btn(self, custom_id: str) -> Optional[Button]:
+        for child in self.children:
+            if getattr(child, "custom_id", None) == custom_id:
+                return child
+        return None
+
+    # ── Ban / Unban ────────────────────────────────────────────────────
+
     @discord.ui.button(
         label="🔨  Ban User",
         style=discord.ButtonStyle.danger,
         custom_id="sus:alert_ban",
+        row=0,
     )
     async def ban_btn(self, interaction: discord.Interaction, button: Button) -> None:
         if not await self._check_staff(interaction):
@@ -468,31 +548,31 @@ class FlaggedAlertView(View):
         except Exception as exc:
             return await interaction.followup.send(f"❌ Error: {exc}", ephemeral=True)
 
-        embed = interaction.message.embeds[0].copy()
-        embed.add_field(
+        ban = self._get_btn("sus:alert_ban")
+        unban = self._get_btn("sus:alert_unban")
+        if ban:
+            ban.disabled = True
+            ban.label = "🔨  Banned"
+        if unban:
+            unban.disabled = False
+
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
             name="🔨 Manually Banned",
             value=(
                 f"By {interaction.user.mention}\n"
                 f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}"
             ),
-            inline=False,
         )
-        for child in self.children:
-            if child.custom_id == "sus:alert_ban":
-                child.disabled = True
-                child.label = "🔨  Banned"
-            elif child.custom_id == "sus:alert_unban":
-                child.disabled = False
         await interaction.message.edit(embed=embed, view=self)
-        log.info(
-            "User %s manually banned in %s by %s", user_id, interaction.guild, interaction.user
-        )
+        log.info("User %s manually banned in %s by %s", user_id, interaction.guild, interaction.user)
 
     @discord.ui.button(
         label="🔓  Unban User",
         style=discord.ButtonStyle.secondary,
         custom_id="sus:alert_unban",
         disabled=True,
+        row=0,
     )
     async def unban_btn(self, interaction: discord.Interaction, button: Button) -> None:
         if not await self._check_staff(interaction):
@@ -521,55 +601,158 @@ class FlaggedAlertView(View):
         except Exception as exc:
             return await interaction.followup.send(f"❌ Error: {exc}", ephemeral=True)
 
-        embed = interaction.message.embeds[0].copy()
-        embed.add_field(
+        ban = self._get_btn("sus:alert_ban")
+        unban = self._get_btn("sus:alert_unban")
+        if ban:
+            ban.disabled = False
+            ban.label = "🔨  Ban User"
+        if unban:
+            unban.disabled = True
+
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
             name="🔓 Unbanned",
             value=(
                 f"By {interaction.user.mention}\n"
                 f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}"
             ),
-            inline=False,
         )
-        for child in self.children:
-            if child.custom_id == "sus:alert_ban":
-                child.disabled = False
-                child.label = "🔨  Ban User"
-            elif child.custom_id == "sus:alert_unban":
-                child.disabled = True
         await interaction.message.edit(embed=embed, view=self)
-        log.info(
-            "User %s unbanned in %s by %s", user_id, interaction.guild, interaction.user
+        log.info("User %s unbanned in %s by %s", user_id, interaction.guild, interaction.user)
+
+    # ── Whitelist / Unwhitelist ────────────────────────────────────────
+
+    @discord.ui.button(
+        label="✅  Whitelist",
+        style=discord.ButtonStyle.success,
+        custom_id="sus:alert_whitelist",
+        row=1,
+    )
+    async def whitelist_btn(self, interaction: discord.Interaction, button: Button) -> None:
+        if not await self._check_staff(interaction):
+            return
+
+        user_id = self._extract_user_id(interaction.message)
+        if not user_id:
+            return await interaction.response.send_message(
+                "❌ User ID not found in embed.", ephemeral=True
+            )
+
+        await interaction.response.defer()
+        guild = interaction.guild
+
+        async with self.cog.config.guild(guild).whitelisted_users() as wl:
+            if user_id in wl:
+                return await interaction.followup.send(
+                    "ℹ️ This user is already whitelisted.", ephemeral=True
+                )
+            wl.append(user_id)
+
+        async with self.cog.config.guild(guild).dm_fail_counts() as dfc:
+            dfc.pop(str(user_id), None)
+
+        wl_btn = self._get_btn("sus:alert_whitelist")
+        uwl_btn = self._get_btn("sus:alert_unwhitelist")
+        if wl_btn:
+            wl_btn.disabled = True
+            wl_btn.label = "✅  Whitelisted"
+        if uwl_btn:
+            uwl_btn.disabled = False
+
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
+            name="✅ Whitelisted",
+            value=(
+                f"By {interaction.user.mention}\n"
+                f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}\n"
+                f"*User will bypass age check on next join.*"
+            ),
         )
+        await interaction.message.edit(embed=embed, view=self)
+        log.info("User %s whitelisted in %s by %s", user_id, guild, interaction.user)
+
+    @discord.ui.button(
+        label="🚫  Unwhitelist",
+        style=discord.ButtonStyle.secondary,
+        custom_id="sus:alert_unwhitelist",
+        disabled=True,
+        row=1,
+    )
+    async def unwhitelist_btn(self, interaction: discord.Interaction, button: Button) -> None:
+        if not await self._check_staff(interaction):
+            return
+
+        user_id = self._extract_user_id(interaction.message)
+        if not user_id:
+            return await interaction.response.send_message(
+                "❌ User ID not found in embed.", ephemeral=True
+            )
+
+        await interaction.response.defer()
+        guild = interaction.guild
+
+        async with self.cog.config.guild(guild).whitelisted_users() as wl:
+            if user_id not in wl:
+                return await interaction.followup.send(
+                    "ℹ️ This user is not currently whitelisted.", ephemeral=True
+                )
+            wl.remove(user_id)
+
+        wl_btn = self._get_btn("sus:alert_whitelist")
+        uwl_btn = self._get_btn("sus:alert_unwhitelist")
+        if wl_btn:
+            wl_btn.disabled = False
+            wl_btn.label = "✅  Whitelist"
+        if uwl_btn:
+            uwl_btn.disabled = True
+
+        embed = _replace_mod_field(
+            interaction.message.embeds[0].copy(),
+            name="🚫 Unwhitelisted",
+            value=(
+                f"By {interaction.user.mention}\n"
+                f"{discord.utils.format_dt(datetime.now(timezone.utc), 'R')}\n"
+                f"*User is subject to age check on next join.*"
+            ),
+        )
+        await interaction.message.edit(embed=embed, view=self)
+        log.info("User %s unwhitelisted in %s by %s", user_id, guild, interaction.user)
+
+    async def on_error(
+        self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item
+    ) -> None:
+        log.exception("FlaggedAlertView error (%s): %s", item, error)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ An unexpected error occurred. Please try again.", ephemeral=True
+                )
+        except Exception:
+            pass
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Main Cog
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Cog ────────────────────────────────────────────────────────────────────────
 
 
 class SuspiciousUserMonitor(commands.Cog):
-    __version__ = "2.0.0"
-    __author__ = "custom"
+
+    __version__ = "2.1.0"
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
-        self.config = Config.get_conf(
-            self, identifier=9182736450, force_registration=True
+        self.config = Config.get_conf(self, identifier=9182736450, force_registration=True)
+        self.config.register_guild(
+            alert_channel=None,
+            verification_channel=None,
+            invite_channel=None,
+            staff_role=None,
+            mention_role=None,
+            min_account_age=7,
+            questionnaire_questions=[],
+            pending_verifications={},
+            whitelisted_users=[],
+            dm_fail_counts={},
         )
-
-        default_guild: dict = {
-            "alert_channel": None,
-            "verification_channel": None,
-            "invite_channel": None,
-            "staff_role": None,
-            "mention_role": None,
-            "min_account_age": 7,
-            "questionnaire_questions": [],
-            "pending_verifications": {},
-            "whitelisted_users": [],
-            "dm_fail_counts": {},
-        }
-        self.config.register_guild(**default_guild)
         self._dm_warn_tasks: dict[str, asyncio.Task] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -578,20 +761,14 @@ class SuspiciousUserMonitor(commands.Cog):
         self.bot.add_view(VerificationView(self))
         self.bot.add_view(SubmissionReviewView(self))
         self.bot.add_view(FlaggedAlertView(self))
-        log.info(
-            "SuspiciousUserMonitor v%s loaded — persistent views registered.",
-            self.__version__,
-        )
+        log.info("SuspiciousUserMonitor v%s loaded.", self.__version__)
 
     async def cog_unload(self) -> None:
         for task in self._dm_warn_tasks.values():
             task.cancel()
         self._dm_warn_tasks.clear()
-        log.info("SuspiciousUserMonitor unloaded.")
 
-    async def red_delete_data_for_user(
-        self, *, requester: str, user_id: int
-    ) -> None:
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int) -> None:
         all_guilds = await self.config.all_guilds()
         uid_str = str(user_id)
         for gid, data in all_guilds.items():
@@ -616,9 +793,7 @@ class SuspiciousUserMonitor(commands.Cog):
     ) -> bool:
         questions = await self.config.guild(guild).questionnaire_questions()
         if not questions:
-            log.warning(
-                "No questions configured in %s — cannot send verification DM.", guild
-            )
+            log.warning("No questions configured in %s — skipping verification DM.", guild)
             return False
 
         embed = discord.Embed(
@@ -626,10 +801,8 @@ class SuspiciousUserMonitor(commands.Cog):
             description=(
                 f"Your account has been flagged as **suspicious** in **{guild.name}** "
                 f"because your account age is below our minimum threshold.\n\n"
-                f"**To regain access you must complete a short verification form.**\n"
-                f"Press **Begin Verification** below to open it.\n\n"
-                f"You may be asked to provide your VRChat profile URL and other details "
-                f"so our staff can confirm your identity."
+                f"**To regain access, complete the short verification form below.**\n"
+                f"Press **Begin Verification** to open it."
             ),
             color=discord.Color.orange(),
             timestamp=datetime.now(timezone.utc),
@@ -667,27 +840,17 @@ class SuspiciousUserMonitor(commands.Cog):
 
         embed = discord.Embed(
             title="🚨 Suspicious Account Flagged & Removed",
-            description=(
-                f"**{member}** (`{member.id}`) was automatically removed from the server."
-            ),
+            description=f"**{member}** (`{member.id}`) was automatically removed from the server.",
             color=discord.Color.red(),
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name="User ID", value=box(str(member.id)), inline=True)
         embed.add_field(name="Account Age", value=f"{account_age} days", inline=True)
-        embed.add_field(
-            name="Threshold",
-            value=f"< {settings.get('min_account_age', 7)} days",
-            inline=True,
-        )
-        embed.add_field(
-            name="Account Created",
-            value=discord.utils.format_dt(member.created_at, "D"),
-            inline=True,
-        )
+        embed.add_field(name="Threshold", value=f"< {settings.get('min_account_age', 7)} days", inline=True)
+        embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "D"), inline=True)
         embed.add_field(name="Reason", value=reason, inline=False)
-        embed.set_footer(text="Use the buttons below to ban or unban this user by ID.")
+        embed.set_footer(text="Use the buttons below to manage this user.")
 
         mention_role: Optional[discord.Role] = None
         mention_role_id = settings.get("mention_role")
@@ -696,24 +859,19 @@ class SuspiciousUserMonitor(commands.Cog):
 
         view = FlaggedAlertView(self)
         if is_banned:
-            for child in view.children:
-                if child.custom_id == "sus:alert_ban":
-                    child.disabled = True
-                    child.label = "🔨  Already Banned"
-                elif child.custom_id == "sus:alert_unban":
-                    child.disabled = False
+            ban = view._get_btn("sus:alert_ban")
+            unban = view._get_btn("sus:alert_unban")
+            if ban:
+                ban.disabled = True
+                ban.label = "🔨  Already Banned"
+            if unban:
+                unban.disabled = False
 
         await alert_channel.send(
-            content=(
-                f"{mention_role.mention} — Suspicious account flagged!"
-                if mention_role
-                else None
-            ),
+            content=f"{mention_role.mention} — Suspicious account flagged!" if mention_role else None,
             embed=embed,
             view=view,
-            allowed_mentions=discord.AllowedMentions(
-                roles=[mention_role] if mention_role else []
-            ),
+            allowed_mentions=discord.AllowedMentions(roles=[mention_role] if mention_role else []),
         )
 
     async def _handle_dm_disabled(self, member: discord.Member) -> None:
@@ -723,7 +881,8 @@ class SuspiciousUserMonitor(commands.Cog):
             datetime.now(timezone.utc) - member.created_at.replace(tzinfo=timezone.utc)
         ).days
 
-        # 1. Post 60-second warning mention
+        # ── Post 1-minute warning mention ─────────────────────────────────────
+
         warn_message: Optional[discord.Message] = None
         vchan_id = settings.get("verification_channel")
         if vchan_id:
@@ -737,26 +896,23 @@ class SuspiciousUserMonitor(commands.Cog):
                         f"Failure to do so will result in your removal from the server."
                     )
                 except discord.Forbidden:
-                    log.warning(
-                        "Cannot post DM-warning in verification channel of %s.", guild
-                    )
+                    log.warning("Cannot post DM-warning in verification channel of %s.", guild)
 
-        # 2. Wait 60 seconds
+
         await asyncio.sleep(60)
 
-        # 3. Delete the warning
         if warn_message:
             try:
                 await warn_message.delete()
             except (discord.Forbidden, discord.NotFound):
                 pass
 
-        # 4. Confirm member still present
         member = guild.get_member(member.id)
         if not member:
             return
 
-        # 5. Retry DM
+        # ── Retry DM ──────────────────────────────────────────────────────────
+
         dm_sent = await self._try_send_verification_dm(member, guild)
 
         if dm_sent:
@@ -765,43 +921,36 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason=(
-                        "Suspicious account — verification DM sent "
-                        "(member re-enabled DMs within the 1-minute window)."
-                    ),
+                    reason="Suspicious account — verification DM sent (DMs re-enabled within 1 min).",
                 )
             except Exception as exc:
                 log.error("Failed to kick %s after delayed DM: %s", member, exc)
             await self._send_staff_alert(
                 guild, member, account_age,
-                "Account age below threshold — verification DM sent "
-                "(member re-enabled DMs within the 1-minute window).",
+                "Account age below threshold — verification DM sent (DMs re-enabled within 1 min).",
             )
             return
 
-        # 6. DMs still closed — increment strike counter
+
         async with self.config.guild(guild).dm_fail_counts() as dfc:
             count = dfc.get(str(member.id), 0) + 1
             dfc[str(member.id)] = count
 
         if count >= 5:
-            reason = (
-                f"Permanently banned: refused to enable DMs for verification "
-                f"on {count} separate join attempts."
-            )
             try:
                 await member.send(
                     f"You have been **permanently banned** from **{guild.name}** "
-                    f"for refusing to enable your DMs for verification "
-                    f"across {count} join attempts."
+                    f"for refusing to enable your DMs for verification across {count} join attempts."
                 )
             except Exception:
                 pass
             try:
-                await guild.ban(member, reason=reason, delete_message_days=0)
-                log.info(
-                    "Auto-banned %s in %s after %d DM failures.", member, guild, count
+                await guild.ban(
+                    member,
+                    reason=f"Permanently banned: DMs disabled on {count} join attempts.",
+                    delete_message_days=0,
                 )
+                log.info("Auto-banned %s in %s after %d DM failures.", member, guild, count)
             except Exception as exc:
                 log.error("Failed to auto-ban %s: %s", member, exc)
             await self._send_staff_alert(
@@ -813,23 +962,17 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason=(
-                        f"Suspicious account — DMs disabled, could not verify "
-                        f"(attempt {count}/5 before auto-ban)."
-                    ),
+                    reason=f"Suspicious account — DMs disabled, could not verify (attempt {count}/5).",
                 )
-                log.info(
-                    "Kicked %s from %s — DMs disabled (failure %d/5).", member, guild, count
-                )
+                log.info("Kicked %s from %s — DMs disabled (failure %d/5).", member, guild, count)
             except Exception as exc:
                 log.error("Failed to kick %s: %s", member, exc)
             await self._send_staff_alert(
                 guild, member, account_age,
-                f"DMs disabled — could not deliver verification "
-                f"(attempt **{count} / 5** before auto-ban).",
+                f"DMs disabled — could not deliver verification (attempt **{count} / 5** before auto-ban).",
             )
 
-    # ── Event listeners ───────────────────────────────────────────────────────
+    # ── Listeners ─────────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
@@ -838,23 +981,18 @@ class SuspiciousUserMonitor(commands.Cog):
 
         guild = member.guild
         settings = await self.config.guild(guild).all()
-        min_age: int = settings.get("min_account_age", 7)
-        whitelisted: list = settings.get("whitelisted_users", [])
 
-        if member.id in whitelisted:
+        if member.id in settings.get("whitelisted_users", []):
             return
 
         account_age = (
             datetime.now(timezone.utc) - member.created_at.replace(tzinfo=timezone.utc)
         ).days
 
-        if account_age >= min_age:
+        if account_age >= settings.get("min_account_age", 7):
             return
 
-        log.info(
-            "Flagging %s in %s — account age %d days (threshold: %d).",
-            member, guild, account_age, min_age,
-        )
+        log.info("Flagging %s in %s — age %d days.", member, guild, account_age)
 
         dm_sent = await self._try_send_verification_dm(member, guild)
 
@@ -864,10 +1002,7 @@ class SuspiciousUserMonitor(commands.Cog):
             try:
                 await guild.kick(
                     member,
-                    reason=(
-                        "Account age below threshold — verification DM sent. "
-                        "Member may rejoin after completing the form."
-                    ),
+                    reason="Account age below threshold — verification DM sent.",
                 )
             except Exception as exc:
                 log.error("Failed to kick %s after DM: %s", member, exc)
@@ -895,100 +1030,69 @@ class SuspiciousUserMonitor(commands.Cog):
         async with self.config.guild(member.guild).pending_verifications() as pv:
             pv.pop(str(member.id), None)
 
-    # ── Hybrid command group ──────────────────────────────────────────────────
+    # ── Hybrid commands ───────────────────────────────────────────────────────
 
-    @commands.hybrid_group(
-        name="sus",
-        description="Suspicious User Monitor — configuration commands",
-    )
+    @commands.hybrid_group(name="sus", description="Suspicious User Monitor configuration")
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     async def sus(self, ctx: commands.Context) -> None:
-        """Suspicious User Monitor configuration. Use a subcommand or /sus <sub>."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
+    # ── Channel setup ─────────────────────────────────────────────────────────
+
     @sus.command(name="setchannel", description="Set the staff alert and review channel")
     @app_commands.describe(channel="Channel for staff alerts and submission reviews")
-    async def sus_setchannel(
-        self, ctx: commands.Context, channel: discord.TextChannel
-    ) -> None:
-        """Set the channel where staff receive alerts and review verification submissions."""
+    async def sus_setchannel(self, ctx: commands.Context, channel: discord.TextChannel) -> None:
         await self.config.guild(ctx.guild).alert_channel.set(channel.id)
         await ctx.send(f"✅ Alert / review channel set to {channel.mention}.", ephemeral=True)
 
-    @sus.command(
-        name="setverificationchannel",
-        description="Set the channel to @mention DM-disabled members in",
-    )
-    @app_commands.describe(channel="Channel where members with DMs off are warned")
-    async def sus_setverificationchannel(
-        self, ctx: commands.Context, channel: discord.TextChannel
-    ) -> None:
-        """Set the channel the bot uses to warn members who have DMs disabled."""
+    @sus.command(name="setverificationchannel", description="Channel to @mention DM-disabled members in")
+    @app_commands.describe(channel="Public channel where members with DMs off are warned")
+    async def sus_setverificationchannel(self, ctx: commands.Context, channel: discord.TextChannel) -> None:
         await self.config.guild(ctx.guild).verification_channel.set(channel.id)
         await ctx.send(f"✅ DM-warning channel set to {channel.mention}.", ephemeral=True)
 
-    @sus.command(
-        name="setinvitechannel",
-        description="Set the channel used to generate single-use invite links on approval",
-    )
+    @sus.command(name="setinvitechannel", description="Channel used to generate invite links on approval")
     @app_commands.describe(channel="Channel from which invites are created")
-    async def sus_setinvitechannel(
-        self, ctx: commands.Context, channel: discord.TextChannel
-    ) -> None:
-        """Set the channel the bot generates single-use invite links from on approval."""
+    async def sus_setinvitechannel(self, ctx: commands.Context, channel: discord.TextChannel) -> None:
         await self.config.guild(ctx.guild).invite_channel.set(channel.id)
         await ctx.send(f"✅ Invite generation channel set to {channel.mention}.", ephemeral=True)
 
+    # ── Role setup ────────────────────────────────────────────────────────────
+
     @sus.command(name="setstaffrole", description="Set the staff role for button access")
     @app_commands.describe(role="The staff / moderator role")
-    async def sus_setstaffrole(
-        self, ctx: commands.Context, role: discord.Role
-    ) -> None:
-        """Set the role granted access to review buttons and sus configuration commands."""
+    async def sus_setstaffrole(self, ctx: commands.Context, role: discord.Role) -> None:
         await self.config.guild(ctx.guild).staff_role.set(role.id)
         await ctx.send(f"✅ Staff role set to {role.mention}.", ephemeral=True)
 
-    @sus.command(
-        name="setmentionrole",
-        description="Set the role @mentioned on every suspicious alert",
-    )
+    @sus.command(name="setmentionrole", description="Role @mentioned on every suspicious alert")
     @app_commands.describe(role="Role pinged when a suspicious account is flagged")
-    async def sus_setmentionrole(
-        self, ctx: commands.Context, role: discord.Role
-    ) -> None:
-        """Set the role that is @mentioned every time a suspicious account is flagged."""
+    async def sus_setmentionrole(self, ctx: commands.Context, role: discord.Role) -> None:
         await self.config.guild(ctx.guild).mention_role.set(role.id)
-        await ctx.send(f"✅ Mention / alert role set to {role.mention}.", ephemeral=True)
+        await ctx.send(f"✅ Mention role set to {role.mention}.", ephemeral=True)
+
+    # ── Threshold ─────────────────────────────────────────────────────────────
 
     @sus.command(name="setage", description="Set the minimum account age threshold in days")
-    @app_commands.describe(days="Accounts younger than this number of days are flagged")
+    @app_commands.describe(days="Accounts younger than this are flagged")
     async def sus_setage(self, ctx: commands.Context, days: int) -> None:
-        """Set the minimum account age in days. Accounts younger than this trigger the flow."""
         if days < 0:
             return await ctx.send("❌ Days must be 0 or greater.", ephemeral=True)
         await self.config.guild(ctx.guild).min_account_age.set(days)
         await ctx.send(f"✅ Minimum account age set to **{days} day(s)**.", ephemeral=True)
 
-    @sus.command(name="addquestion", description="Add a question to the verification form (max 5)")
-    @app_commands.describe(question="Question text shown in the modal form (max 100 characters)")
-    async def sus_addquestion(self, ctx: commands.Context, *, question: str) -> None:
-        """
-        Add a verification question (up to 5 total).
+    # ── Questions ─────────────────────────────────────────────────────────────
 
-        Include "vrchat" in any question to auto-render it as a URL field.
-        Example: `Provide your VRChat profile URL (vrchat.com/home/user/…)`
-        """
+    @sus.command(name="addquestion", description="Add a question to the verification form (max 5)")
+    @app_commands.describe(question="Question text (max 100 characters)")
+    async def sus_addquestion(self, ctx: commands.Context, *, question: str) -> None:
         if len(question) > 100:
-            return await ctx.send(
-                "❌ Questions must be **100 characters or fewer**.", ephemeral=True
-            )
+            return await ctx.send("❌ Questions must be 100 characters or fewer.", ephemeral=True)
         async with self.config.guild(ctx.guild).questionnaire_questions() as questions:
             if len(questions) >= 5:
-                return await ctx.send(
-                    "❌ Maximum of **5 questions** allowed.", ephemeral=True
-                )
+                return await ctx.send("❌ Maximum of 5 questions allowed.", ephemeral=True)
             questions.append(question)
             count = len(questions)
         await ctx.send(f"✅ Question {count} added:\n> {question}", ephemeral=True)
@@ -996,25 +1100,19 @@ class SuspiciousUserMonitor(commands.Cog):
     @sus.command(name="removequestion", description="Remove a verification question by number")
     @app_commands.describe(number="Question number to remove (1–5)")
     async def sus_removequestion(self, ctx: commands.Context, number: int) -> None:
-        """Remove a question by its position in the list."""
         async with self.config.guild(ctx.guild).questionnaire_questions() as questions:
             if not 1 <= number <= len(questions):
                 return await ctx.send(
-                    f"❌ Invalid number. You have {len(questions)} question(s).",
-                    ephemeral=True,
+                    f"❌ Invalid number. You have {len(questions)} question(s).", ephemeral=True
                 )
             removed = questions.pop(number - 1)
         await ctx.send(f"✅ Removed question {number}:\n> {removed}", ephemeral=True)
 
     @sus.command(name="listquestions", description="List all configured verification questions")
     async def sus_listquestions(self, ctx: commands.Context) -> None:
-        """Show all questions currently in the verification questionnaire."""
         questions = await self.config.guild(ctx.guild).questionnaire_questions()
         if not questions:
-            return await ctx.send(
-                "❌ No questions configured. Use `sus addquestion` to add some.",
-                ephemeral=True,
-            )
+            return await ctx.send("❌ No questions configured.", ephemeral=True)
         embed = discord.Embed(
             title="📋 Verification Questions",
             description="\n".join(f"**{i}.** {q}" for i, q in enumerate(questions, 1)),
@@ -1023,10 +1121,11 @@ class SuspiciousUserMonitor(commands.Cog):
         embed.set_footer(text=f"{len(questions)} / 5 slots used")
         await ctx.send(embed=embed, ephemeral=True)
 
+    # ── Whitelist ─────────────────────────────────────────────────────────────
+
     @sus.command(name="whitelist", description="Whitelist a user ID to bypass the age check")
     @app_commands.describe(user_id="Discord user ID to whitelist")
     async def sus_whitelist(self, ctx: commands.Context, user_id: str) -> None:
-        """Whitelist a user ID — they will pass the age check without triggering the flow."""
         try:
             uid = int(user_id)
         except ValueError:
@@ -1038,9 +1137,8 @@ class SuspiciousUserMonitor(commands.Cog):
         await ctx.send(f"✅ User `{uid}` has been whitelisted.", ephemeral=True)
 
     @sus.command(name="unwhitelist", description="Remove a user ID from the whitelist")
-    @app_commands.describe(user_id="Discord user ID to remove from the whitelist")
+    @app_commands.describe(user_id="Discord user ID to remove")
     async def sus_unwhitelist(self, ctx: commands.Context, user_id: str) -> None:
-        """Remove a user from the whitelist — age check applies again on next join."""
         try:
             uid = int(user_id)
         except ValueError:
@@ -1051,28 +1149,25 @@ class SuspiciousUserMonitor(commands.Cog):
             wl.remove(uid)
         await ctx.send(f"✅ Removed `{uid}` from the whitelist.", ephemeral=True)
 
+    # ── DM-fail management ────────────────────────────────────────────────────
+
     @sus.command(name="resetfails", description="Reset the DM-fail strike counter for a user")
-    @app_commands.describe(user_id="Discord user ID whose DM-fail count should be reset")
+    @app_commands.describe(user_id="Discord user ID to reset")
     async def sus_resetfails(self, ctx: commands.Context, user_id: str) -> None:
-        """
-        Reset a user's DM-fail strike counter.
-        Users are auto-banned after 5 strikes. Use this if they've fixed their settings.
-        """
         try:
             uid = int(user_id)
         except ValueError:
             return await ctx.send("❌ Invalid user ID.", ephemeral=True)
         async with self.config.guild(ctx.guild).dm_fail_counts() as dfc:
             if str(uid) not in dfc:
-                return await ctx.send(
-                    f"ℹ️ No DM-fail record found for `{uid}`.", ephemeral=True
-                )
+                return await ctx.send(f"ℹ️ No record found for `{uid}`.", ephemeral=True)
             del dfc[str(uid)]
         await ctx.send(f"✅ DM-fail counter reset for `{uid}`.", ephemeral=True)
 
+    # ── Settings ──────────────────────────────────────────────────────────────
+
     @sus.command(name="settings", description="Show the current configuration")
     async def sus_settings(self, ctx: commands.Context) -> None:
-        """Display the full current configuration for this server."""
         s = await self.config.guild(ctx.guild).all()
 
         def fmt_ch(cid: Optional[int]) -> str:
@@ -1085,8 +1180,6 @@ class SuspiciousUserMonitor(commands.Cog):
 
         questions: list = s["questionnaire_questions"]
         dm_fails: dict = s["dm_fail_counts"]
-        pending: dict = s["pending_verifications"]
-        whitelisted: list = s["whitelisted_users"]
 
         embed = discord.Embed(
             title="⚙️  Suspicious User Monitor — Settings",
@@ -1097,11 +1190,11 @@ class SuspiciousUserMonitor(commands.Cog):
         embed.add_field(name="DM-Warning Channel", value=fmt_ch(s["verification_channel"]), inline=True)
         embed.add_field(name="Invite Channel", value=fmt_ch(s["invite_channel"]), inline=True)
         embed.add_field(name="Staff Role", value=fmt_role(s["staff_role"]), inline=True)
-        embed.add_field(name="Mention / Alert Role", value=fmt_role(s["mention_role"]), inline=True)
+        embed.add_field(name="Mention Role", value=fmt_role(s["mention_role"]), inline=True)
         embed.add_field(name="Min Account Age", value=f"{s['min_account_age']} days", inline=True)
-        embed.add_field(name="Questions Configured", value=f"{len(questions)} / 5", inline=True)
-        embed.add_field(name="Whitelisted Users", value=str(len(whitelisted)), inline=True)
-        embed.add_field(name="Pending Verifications", value=str(len(pending)), inline=True)
+        embed.add_field(name="Questions", value=f"{len(questions)} / 5", inline=True)
+        embed.add_field(name="Whitelisted Users", value=str(len(s["whitelisted_users"])), inline=True)
+        embed.add_field(name="Pending Verifications", value=str(len(s["pending_verifications"])), inline=True)
 
         if questions:
             embed.add_field(
@@ -1115,7 +1208,7 @@ class SuspiciousUserMonitor(commands.Cog):
             fails_text = "\n".join(f"`{uid}` — {cnt} strike(s)" for uid, cnt in top)
             if len(dm_fails) > 10:
                 fails_text += f"\n*…and {len(dm_fails) - 10} more*"
-            embed.add_field(name="DM-Fail Strikes (Top 10)", value=fails_text, inline=False)
+            embed.add_field(name="DM-Fail Strikes", value=fails_text, inline=False)
 
-        embed.set_footer(text=f"SuspiciousUserMonitor v{self.__version__}")
+        embed.set_footer(text=f"v{self.__version__}")
         await ctx.send(embed=embed, ephemeral=True)
